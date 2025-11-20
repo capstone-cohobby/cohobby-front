@@ -1,3 +1,6 @@
+<<<<<<< HEAD
+node_modules
+=======
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
@@ -51,3 +54,4 @@ Thumbs.db
 *.zip
 *.log
 
+>>>>>>> d383f27187ccc6e92364bc3f6af909f32cdcfda0

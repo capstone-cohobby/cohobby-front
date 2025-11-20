@@ -1,26 +1,127 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '../../components/Header';
 import BottomNavigation from '../../components/BottomNavigation';
 
+interface UserProfile {
+  id: number;
+  nickname: string | null;
+  email: string | null;
+  profilePicture: string | null;
+  score: number;
+  gender: string | null;
+  birthYear: number | null;
+  birthday: string | null;
+  phoneNumber: string | null;
+  createdAt: string;
+}
+
 export default function ProfilePage() {
   const [selectedTab, setSelectedTab] = useState('대여내역');
   const router = useRouter();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [profileData, setProfileData] = useState<UserProfile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const profileData = {
-    name: '김대여',
-    email: 'rental@example.com',
-    joinDate: '2023.03.15',
-    avatar: 'https://readdy.ai/api/search-image?query=Professional%20friendly%20person%20avatar%20headshot%20with%20warm%20smile%20on%20clean%20white%20background%2C%20modern%20profile%20photo%20style&width=120&height=120&seq=profile1&orientation=squarish',
-    level: '플래티넘',
-    contributionPoints: 2450,
-    rentalCount: 47,
-    registeredItems: 12,
-    rating: 4.8,
-    completedDeals: 39
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      try {
+        const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
+        
+        if (!token) {
+          setIsLoading(false);
+          router.push('/login');
+          return;
+        }
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10초 타임아웃
+
+        try {
+          const response = await fetch('http://localhost:8080/auth/me', {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            credentials: 'include',
+            signal: controller.signal
+          });
+
+          clearTimeout(timeoutId);
+
+          if (response.ok) {
+            const userData = await response.json();
+            setProfileData(userData);
+          } else if (response.status === 401) {
+            // 인증 실패 시 로그인 페이지로 이동
+            localStorage.removeItem('accessToken');
+            localStorage.removeItem('token');
+            localStorage.removeItem('refreshToken');
+            setIsLoading(false);
+            router.push('/login');
+            return;
+          } else {
+            // 다른 에러 발생 시
+            console.error('사용자 정보를 가져오는 중 오류 발생:', response.status, response.statusText);
+            // 에러가 발생해도 기본 정보는 표시하도록 함
+            const errorText = await response.text();
+            console.error('에러 응답:', errorText);
+          }
+        } catch (fetchError: any) {
+          clearTimeout(timeoutId);
+          
+          // 네트워크 에러나 타임아웃인 경우
+          if (fetchError.name === 'AbortError') {
+            console.error('요청 타임아웃');
+          } else if (fetchError.message?.includes('fetch')) {
+            console.error('네트워크 에러:', fetchError);
+            // 백엔드 서버가 실행되지 않았을 수 있음
+            // 하지만 사용자에게는 기본 정보를 표시하도록 함
+          } else {
+            throw fetchError;
+          }
+        }
+      } catch (error) {
+        console.error('사용자 정보를 가져오는 중 예상치 못한 오류 발생:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUserProfile();
+  }, [router]);
+
+  // 사용자 레벨 계산 (score 기반)
+  const getUserLevel = (score: number) => {
+    if (score >= 2000) return '플래티넘';
+    if (score >= 1000) return '골드';
+    if (score >= 500) return '실버';
+    return '브론즈';
+  };
+
+  // 날짜 포맷팅
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\./g, '.').replace(/\s/g, '');
+  };
+
+  // 기본 프로필 데이터 (로딩 중이거나 데이터가 없을 때)
+  const defaultProfileData = {
+    name: profileData?.nickname || '사용자',
+    email: profileData?.email || '',
+    joinDate: formatDate(profileData?.createdAt || null),
+    avatar: profileData?.profilePicture || 'https://readdy.ai/api/search-image?query=Professional%20friendly%20person%20avatar%20headshot%20with%20warm%20smile%20on%20clean%20white%20background%2C%20modern%20profile%20photo%20style&width=120&height=120&seq=profile1&orientation=squarish',
+    level: getUserLevel(profileData?.score || 0),
+    contributionPoints: profileData?.score || 0,
+    rentalCount: 0, // TODO: 실제 대여 횟수 API 연동 필요
+    registeredItems: 0, // TODO: 실제 등록 상품 수 API 연동 필요
+    rating: 0, // TODO: 실제 평점 API 연동 필요
+    completedDeals: 0 // TODO: 실제 완료 거래 수 API 연동 필요
   };
 
   const rentalHistory = [
@@ -144,6 +245,73 @@ export default function ProfilePage() {
 
   const handleWriteReview = (itemId: number) => {
     router.push(`/review/write?itemId=${itemId}`);
+  };
+
+  const handleLogout = async () => {
+    if (isLoggingOut) return;
+    
+    setIsLoggingOut(true);
+    try {
+      // localStorage에서 토큰 가져오기
+      const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
+      
+      // fetch에 timeout 추가하여 연결 실패 시 빠르게 처리
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5초 타임아웃
+      
+      try {
+        const response = await fetch('http://localhost:8080/auth/logout', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token && { 'Authorization': `Bearer ${token}` })
+          },
+          credentials: 'include',
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+        
+        if (response.ok) {
+          // 로컬 스토리지에서 토큰 제거
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('token');
+          localStorage.removeItem('refreshToken');
+          
+          // 로그인 페이지로 이동
+          router.push('/login');
+        } else {
+          // API 호출 실패해도 로컬 토큰은 제거하고 로그인 페이지로 이동
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('token');
+          localStorage.removeItem('refreshToken');
+          router.push('/login');
+        }
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId);
+        
+        // 네트워크 에러나 타임아웃인 경우
+        if (fetchError.name === 'AbortError' || fetchError.message?.includes('fetch')) {
+          // 백엔드 서버가 실행되지 않았거나 연결할 수 없는 경우
+          // 로컬 토큰만 제거하고 로그인 페이지로 이동
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('token');
+          localStorage.removeItem('refreshToken');
+          router.push('/login');
+        } else {
+          throw fetchError;
+        }
+      }
+    } catch (error) {
+      console.error('로그아웃 중 오류 발생:', error);
+      // 오류 발생해도 로컬 토큰은 제거하고 로그인 페이지로 이동
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('token');
+      localStorage.removeItem('refreshToken');
+      router.push('/login');
+    } finally {
+      setIsLoggingOut(false);
+    }
   };
 
   const renderContent = () => {
@@ -342,6 +510,38 @@ export default function ProfilePage() {
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-green-50 flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  // 토큰이 없으면 로그인 페이지로 리다이렉트
+  const token = typeof window !== 'undefined' 
+    ? (localStorage.getItem('accessToken') || localStorage.getItem('token'))
+    : null;
+  
+  if (!token) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-green-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-600 mb-4">로그인이 필요합니다.</p>
+          <button
+            onClick={() => router.push('/login')}
+            className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600"
+          >
+            로그인하기
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // profileData가 없어도 기본 정보는 표시 (API 호출 실패 시에도)
+  // profileData가 null이면 기본값 사용
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-green-50">
       <Header />
@@ -352,41 +552,53 @@ export default function ProfilePage() {
           <div className="bg-gradient-to-r from-purple-500 to-green-400 rounded-3xl p-6 text-white shadow-lg">
             <div className="flex items-center gap-4 mb-6">
               <img 
-                src={profileData.avatar} 
+                src={defaultProfileData.avatar} 
                 alt="프로필" 
                 className="w-20 h-20 rounded-2xl object-cover border-4 border-white/30"
               />
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
-                  <h2 className="text-xl font-bold">{profileData.name}</h2>
+                  <h2 className="text-xl font-bold">{defaultProfileData.name}</h2>
                   <span className="px-2 py-1 bg-white/20 rounded-full text-xs font-medium">
-                    {profileData.level}
+                    {defaultProfileData.level}
                   </span>
                 </div>
-                <p className="text-sm opacity-90 mb-1">{profileData.email}</p>
-                <p className="text-xs opacity-75">가입일: {profileData.joinDate}</p>
+                <p className="text-sm opacity-90 mb-1">{defaultProfileData.email}</p>
+                <p className="text-xs opacity-75">가입일: {defaultProfileData.joinDate || '정보 없음'}</p>
                 <div className="flex items-center gap-1 mt-2">
                   <i className="ri-star-fill text-yellow-300 text-sm"></i>
-                  <span className="text-sm font-medium">{profileData.rating}</span>
-                  <span className="text-xs opacity-75">({profileData.completedDeals}회 거래)</span>
+                  <span className="text-sm font-medium">{defaultProfileData.rating}</span>
+                  <span className="text-xs opacity-75">({defaultProfileData.completedDeals}회 거래)</span>
                 </div>
               </div>
             </div>
             
             <div className="grid grid-cols-3 gap-4">
               <div className="text-center">
-                <div className="text-2xl font-bold mb-1">{profileData.contributionPoints.toLocaleString()}</div>
+                <div className="text-2xl font-bold mb-1">{defaultProfileData.contributionPoints.toLocaleString()}</div>
                 <div className="text-xs opacity-90">기여포인트</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold mb-1">{profileData.rentalCount}</div>
+                <div className="text-2xl font-bold mb-1">{defaultProfileData.rentalCount}</div>
                 <div className="text-xs opacity-90">대여 횟수</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold mb-1">{profileData.registeredItems}</div>
+                <div className="text-2xl font-bold mb-1">{defaultProfileData.registeredItems}</div>
                 <div className="text-xs opacity-90">등록 상품</div>
               </div>
             </div>
+          </div>
+          
+          {/* 로그아웃 버튼 */}
+          <div className="mt-4">
+            <button
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+              className="w-full py-3 bg-white/90 backdrop-blur-sm text-red-600 rounded-2xl font-medium hover:bg-white transition-colors shadow-sm border border-red-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              <i className="ri-logout-box-line text-lg"></i>
+              {isLoggingOut ? '로그아웃 중...' : '로그아웃'}
+            </button>
           </div>
         </div>
 

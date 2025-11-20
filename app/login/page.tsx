@@ -1,39 +1,50 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { setAccessToken, setRefreshToken, isAuthenticated } from '@/lib/auth';
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
 
-  // 이미 로그인되어 있으면 메인 페이지로 리다이렉트
   useEffect(() => {
-    if (isAuthenticated()) {
-      const redirect = searchParams.get('redirect');
-      router.push(redirect || '/');
+    // URL에서 토큰이 있는지 확인 (OAuth2 로그인 성공 후 리다이렉트)
+    const accessToken = searchParams.get('accessToken');
+    const refreshToken = searchParams.get('refreshToken');
+    const error = searchParams.get('error');
+
+    if (error) {
+      // 에러가 있는 경우 알림 표시
+      alert(`로그인 중 오류가 발생했습니다: ${error}`);
+      // 에러 파라미터 제거
+      router.replace('/login');
+      return;
     }
-  }, [router, searchParams]);
+
+    if (accessToken && refreshToken) {
+      // 토큰을 localStorage에 저장
+      localStorage.setItem('accessToken', accessToken);
+      localStorage.setItem('refreshToken', refreshToken);
+      
+      // URL에서 토큰 파라미터 제거하고 메인 페이지로 이동
+      router.replace('/');
+    }
+  }, [searchParams, router]);
 
   const handleKakaoLogin = () => {
     setIsLoading(true);
-    // 카카오 로그인 시뮬레이션
-    // 실제로는 백엔드 OAuth2 엔드포인트로 리다이렉트해야 함
-    // 예: window.location.href = 'http://localhost:8080/oauth2/authorization/kakao';
     
-    // 임시: 테스트용 토큰 저장
-    setTimeout(() => {
-      // 실제 구현 시 백엔드에서 받은 토큰을 저장
-      setAccessToken('test-access-token');
-      setRefreshToken('test-refresh-token');
-      
-      setIsLoading(false);
-      const redirect = searchParams.get('redirect');
-      router.push(redirect || '/');
-    }, 2000);
+    // 현재 프론트엔드 URL을 redirect_to 파라미터로 전달
+    const currentUrl = typeof window !== 'undefined' 
+      ? `${window.location.origin}/login`
+      : 'http://localhost:3000/login';
+    
+    // 백엔드 OAuth2 카카오 로그인 엔드포인트로 리다이렉트
+    const redirectUrl = `http://localhost:8080/oauth2/authorization/kakao?redirect_to=${encodeURIComponent(currentUrl)}`;
+    
+    window.location.href = redirectUrl;
   };
 
   return (
@@ -92,5 +103,17 @@ export default function LoginPage() {
       {/* 하단 장식 */}
       <div className="absolute bottom-0 left-0 w-full h-40 bg-gradient-to-t from-green-500/30 to-transparent"></div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-purple-100 via-white to-green-100 flex items-center justify-center">
+        <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
   );
 }
