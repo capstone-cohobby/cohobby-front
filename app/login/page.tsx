@@ -1,19 +1,38 @@
 
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { setAccessToken, setRefreshToken, isAuthenticated } from '@/lib/auth';
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
+
+  // 이미 로그인되어 있으면 메인 페이지로 리다이렉트
+  useEffect(() => {
+    if (isAuthenticated()) {
+      const redirect = searchParams.get('redirect');
+      router.push(redirect || '/');
+    }
+  }, [router, searchParams]);
 
   const handleKakaoLogin = () => {
     setIsLoading(true);
     // 카카오 로그인 시뮬레이션
+    // 실제로는 백엔드 OAuth2 엔드포인트로 리다이렉트해야 함
+    // 예: window.location.href = 'http://localhost:8080/oauth2/authorization/kakao';
+    
+    // 임시: 테스트용 토큰 저장
     setTimeout(() => {
+      // 실제 구현 시 백엔드에서 받은 토큰을 저장
+      setAccessToken('test-access-token');
+      setRefreshToken('test-refresh-token');
+      
       setIsLoading(false);
-      router.push('/');
+      const redirect = searchParams.get('redirect');
+      router.push(redirect || '/');
     }, 2000);
   };
 
