@@ -31,7 +31,7 @@ export default function BottomNavigation() {
         router.push('/hobby');
         break;
       case '등록':
-        router.push('/register');
+        router.push('/posts/new');
         break;
       case '내정보':
         router.push('/profile');
