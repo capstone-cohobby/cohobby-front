@@ -1,8 +1,9 @@
 // 공통 타입 정의
 export interface FormData {
-  productName: string;
+  goods: string;
   category: string;
-  subCategory: string;
+  hobby: string;
+  hobbyId?: number;
   purchaseDate: string;
   defects: string;
   precautions: string;

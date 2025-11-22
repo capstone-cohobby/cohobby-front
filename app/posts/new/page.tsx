@@ -9,27 +9,28 @@ import Step1BasicInfo from '../../../components/post-register/Step1BasicInfo';
 import Step2DetailInfo from '../../../components/post-register/Step2DetailInfo';
 import Step3Photos from '../../../components/post-register/Step3Photos';
 import Step4Price from '../../../components/post-register/Step4Price';
-import { FormData } from '../../../components/post-register/types';
+import { FormData as PostFormData } from '../../../components/post-register/types';
 
-// baseURL 설정 - Swagger 문서: http://43.203.228.76:8080/docs/swagger-ui/index.html
-const baseURL = process.env.NEXT_PUBLIC_BASE_URL || 'http://43.203.228.76:8080';
+const baseURL = process.env.NEXT_PUBLIC_BASE_URL;
 
-// API 경로 확인을 위한 헬퍼 함수
 const getApiUrl = (endpoint: string) => {
-  // Swagger 문서를 보면 실제 API 경로가 다를 수 있음
-  // 예: /api/posts, /posts 등
   return `${baseURL}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
 };
 
 export default function NewPostPage() {
   const router = useRouter();
+  
+  // [수정] State 위치 이동: 컴포넌트 내부로!
+  const [aiSuggestion, setAiSuggestion] = useState<any>(null);
+  const [isAiLoading, setIsAiLoading] = useState(false);
+
   const [currentStep, setCurrentStep] = useState(1);
   const [hobbyId, setHobbyId] = useState<number | null>(null);
   const [postId, setPostId] = useState<number | null>(null);
-  const [formData, setFormData] = useState<FormData>({
-    productName: '',
+  const [formData, setFormData] = useState<PostFormData>({
+    goods: '',
     category: '스포츠',
-    subCategory: '',
+    hobby: '',
     purchaseDate: '',
     defects: '',
     precautions: '',
@@ -41,17 +42,16 @@ export default function NewPostPage() {
     deposit: ''
   });
 
-  // Step 1이 렌더링될 때와 subCategory가 변경될 때 hobbyId 업데이트
   useEffect(() => {
     if (currentStep === 1) {
-      if (formData.category && formData.subCategory) {
-        const id = getHobbyId(formData.category, formData.subCategory);
+      if (formData.category && formData.hobby) {
+        const id = getHobbyId(formData.category, formData.hobby);
         setHobbyId(id);
       } else {
         setHobbyId(DEFAULT_HOBBY_ID);
       }
     }
-  }, [currentStep, formData.category, formData.subCategory]);
+  }, [currentStep, formData.category, formData.hobby]);
 
   const handleInputChange = (field: string, value: string | string[]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -74,116 +74,123 @@ export default function NewPostPage() {
     }));
   };
 
-  // Step 1에서 다음 단계 클릭 시 post 생성
+  // Step 1: 게시글 생성
   const handleStep1Next = async () => {
     try {
-      const userId = localStorage.getItem('userId') || '1';
-      const currentHobbyId = hobbyId || 1;
-      
-      const goods = {
-        productName: formData.productName,
-        category: formData.category,
-        subCategory: formData.subCategory
-      };
-
-      // Swagger 문서에서 확인한 실제 API 경로 사용
-      // Swagger: http://43.203.228.76:8080/docs/swagger-ui/index.html#/Post/createPost
+      const accessToken = localStorage.getItem('accessToken');
+      const refreshToken = localStorage.getItem('refreshToken');
+  
+      if (!accessToken) {
+        alert('로그인 정보가 없습니다. 다시 로그인해주세요.');
+        router.push('/login');
+        return;
+      }
+  
       const apiUrl = getApiUrl('/posts');
-      const requestBody = {
-        goods: goods,
-        hobbyId: currentHobbyId,
-        userId: parseInt(userId)
+      const requestBody = { 
+        goods: formData.goods,
+        hobbyId: hobbyId 
       };
-      
+  
       console.log('=== API Request Info ===');
-      console.log('API URL:', apiUrl);
-      console.log('baseURL:', baseURL);
-      console.log('Request Method: POST');
-      console.log('Request Body:', requestBody);
-      console.log('========================');
-
-      let response: Response;
-      try {
-        response = await fetch(apiUrl, {
+      console.log('URL:', apiUrl);
+      
+      const doRequest = async (token?: string) => {
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        };
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+  
+        return fetch(apiUrl, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
+          headers,
           body: JSON.stringify(requestBody),
-          mode: 'cors', // CORS 모드 명시
-          credentials: 'omit' // credentials는 필요시 'include'로 변경
+          mode: 'cors',
+          credentials: 'include',
         });
-        
-        console.log('=== API Response Info ===');
-        console.log('Status:', response.status);
-        console.log('Status Text:', response.statusText);
-        console.log('Headers:', Object.fromEntries(response.headers.entries()));
-        console.log('========================');
-      } catch (fetchError: any) {
-        console.error('=== Fetch Error Details ===');
-        console.error('Error Message:', fetchError.message);
-        console.error('Error Name:', fetchError.name);
-        console.error('Error Type:', fetchError.constructor.name);
-        console.error('API URL:', apiUrl);
-        console.error('==========================');
-        
-        // 네트워크 에러인지 CORS 에러인지 구분
-        if (fetchError.message.includes('Failed to fetch') || fetchError.message.includes('NetworkError')) {
-          throw new Error(`네트워크 연결 실패: ${apiUrl}에 연결할 수 없습니다. 서버가 실행 중인지, URL이 올바른지 확인해주세요.`);
-        } else if (fetchError.message.includes('CORS') || fetchError.name === 'TypeError') {
-          throw new Error(`CORS 오류: 백엔드 서버의 CORS 설정을 확인해주세요. (${apiUrl})`);
+      };
+  
+      let response = await doRequest(accessToken || undefined);
+  
+      // 토큰 재발급 로직
+      if (response.status === 401 && refreshToken) {
+        console.log('401 발생 → /auth/token/refresh');
+        const refreshResponse = await fetch(getApiUrl('/auth/token/refresh'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken }),
+        });
+  
+        if (refreshResponse.ok) {
+          const { accessToken: newAccessToken } = await refreshResponse.json();
+          localStorage.setItem('accessToken', newAccessToken);
+          response = await doRequest(newAccessToken);
         } else {
-          throw new Error(`요청 실패: ${fetchError.message}`);
+          alert('인증 세션이 만료되었습니다.');
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          router.push('/login');
+          return;
         }
       }
-
+  
       if (!response.ok) {
         const text = await response.text();
-        console.error('API Error - Status:', response.status);
-        console.error('API Error - URL:', apiUrl);
-        console.error('API Error - Response:', text);
-        throw new Error(`서버 오류 (${response.status}): ${text || '게시글 생성 실패'}`);
+        throw new Error(`서버 오류 (${response.status}): ${text}`);
       }
-
+  
       const createdPost = await response.json();
-      console.log('Post created:', createdPost);
-      
-      if (createdPost.id) {
-        setPostId(createdPost.id);
+      const realId = createdPost.result?.postId || createdPost.postId; 
+
+      if (realId) {
+        setPostId(realId);
+        localStorage.setItem('tempPostId', String(realId)); 
+        console.log("✅ ID 저장 완료:", realId);
+      } else {
+        alert("서버 응답에서 ID를 찾을 수 없습니다.");
+        return; 
       }
-      
+  
       setCurrentStep(2);
     } catch (error: any) {
       console.error('Post creation error:', error);
-      console.error('Error details:', {
-        message: error?.message,
-        name: error?.name,
-        stack: error?.stack
-      });
       alert('게시글 생성 중 오류가 발생했어요: ' + (error?.message ?? '알 수 없는 오류'));
     }
   };
+  
 
-  // Step 2에서 다음 버튼 클릭 시 물품 정보 업데이트
+  // Step 2: 물품 정보 업데이트 후 AI 호출
   const handleStep2Next = async () => {
-    if (!postId) {
-      alert('게시글 정보를 찾을 수 없습니다. 처음부터 다시 시도해주세요.');
+    const targetPostId = postId || Number(localStorage.getItem('tempPostId'));
+
+    if (!targetPostId) {
+      alert('게시글 ID가 없습니다. 처음부터 다시 작성해주세요.');
       return;
     }
 
+    const accessToken = localStorage.getItem('accessToken');
+    if (!accessToken) {
+        alert("로그인이 필요합니다.");
+        router.push('/login');
+        return;
+    }
+
     try {
-      const response = await fetch(`${baseURL}/posts/${postId}/pricing`, {
-        method: 'PUT',
+      // 1. 상세 정보 저장
+      const response = await fetch(`${baseURL}/posts/${targetPostId}/details`, {
+        method: 'PATCH',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
         },
         body: JSON.stringify({
-          purchaseDate: formData.purchaseDate,
-          defects: formData.defects,
-          precautions: formData.precautions,
-          rentalStartDate: formData.rentalStartDate,
-          rentalEndDate: formData.rentalEndDate
+          purchasedAt: formData.purchaseDate,
+          defectStatus: formData.defects,
+          availableFrom: formData.rentalStartDate,
+          availableUntil: formData.rentalEndDate
         })
       });
 
@@ -192,9 +199,49 @@ export default function NewPostPage() {
         throw new Error(text || '물품 정보 업데이트 실패');
       }
 
-      const updatedPost = await response.json();
-      console.log('Post updated:', updatedPost);
+      console.log('✅ 상세 정보 저장 완료');
       
+      // 2. [비동기] AI 호출 (결과 대기 안 함)
+      setIsAiLoading(true); 
+
+      fetch(`${baseURL}/posts/${targetPostId}/ai-estimate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({
+          name: formData.goods,
+          bought_at: formData.purchaseDate,
+          precondition: formData.defects
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.isSuccess && data.result) {
+          console.log("🤖 AI 계산 완료:", data.result);
+          setAiSuggestion({
+            min: data.result.suggestedLowPrice,
+            point: data.result.suggestedPointPrice,
+            max: data.result.suggestedHighPrice,
+            deposit: data.result.suggestedDeposit,
+            reason: data.result.reason,
+            confidence: data.result.confidence 
+          });
+          
+          // 🔥 [자동 입력] 대여료, 보증금, 주의사항 자동 채우기
+          setFormData(prev => ({
+             ...prev,
+             dailyPrice: data.result.suggestedPointPrice?.toLocaleString() || '',
+             deposit: data.result.suggestedDeposit?.toLocaleString() || '',
+             // AI가 준 caution을 precautions에 매핑
+             precautions: data.result.caution || '' 
+          }));
+        }
+      })
+      .catch(err => console.error("AI 호출 에러:", err))
+      .finally(() => setIsAiLoading(false)); 
+
       setCurrentStep(3);
     } catch (error: any) {
       console.error('Post update error:', error);
@@ -202,10 +249,11 @@ export default function NewPostPage() {
     }
   };
 
-  // Step 3에서 다음 버튼 클릭 시 사진 등록
+  // Step 3: 사진 등록 (임시 패스)
   const handleStep3Next = async () => {
-    if (!postId) {
-      alert('게시글 정보를 찾을 수 없습니다. 처음부터 다시 시도해주세요.');
+    const targetPostId = postId || Number(localStorage.getItem('tempPostId'));
+    if (!targetPostId) {
+      alert('게시글 ID가 없습니다.');
       return;
     }
 
@@ -214,54 +262,32 @@ export default function NewPostPage() {
       return;
     }
 
-    try {
-      const response = await fetch(`${baseURL}/posts/${postId}/photos`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          photos: formData.photos.map((photo, index) => ({
-            url: photo,
-            isMain: index === 0,
-            order: index + 1
-          }))
-        })
-      });
-
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || '사진 등록 실패');
-      }
-
-      const result = await response.json();
-      console.log('Photos uploaded:', result);
-      
-      setCurrentStep(4);
-    } catch (error: any) {
-      console.error('Photo upload error:', error);
-      alert('사진 등록 중 오류가 발생했어요: ' + (error?.message ?? ''));
-    }
+    console.log("🚧 사진 등록 API 건너뛰고 4단계로 이동");
+    setCurrentStep(4);
   };
 
-  // Step 4에서 등록 완료 - updateDetailPost API 호출
+  // Step 4: 가격 설정 (최종 등록)
   const handleSubmit = async () => {
-    if (!postId) {
-      alert('게시글 정보를 찾을 수 없습니다. 처음부터 다시 시도해주세요.');
+    const targetPostId = postId || Number(localStorage.getItem('tempPostId'));
+    if (!targetPostId) {
+      alert('게시글 정보를 찾을 수 없습니다.');
       return;
     }
 
+    const accessToken = localStorage.getItem('accessToken');
+
     try {
-      // updateDetailPost API 호출
-      const response = await fetch(`${baseURL}/posts/${postId}/detail`, {
-        method: 'PUT',
+      // [수정] URL: /pricing, Method: PATCH
+      const response = await fetch(`${baseURL}/posts/${targetPostId}/pricing`, {
+        method: 'PATCH',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}` // 토큰 필수
         },
         body: JSON.stringify({
           dailyPrice: parseInt(formData.dailyPrice.replace(/,/g, '')),
-          weeklyPrice: parseInt(formData.weeklyPrice.replace(/,/g, '')),
-          deposit: parseInt(formData.deposit.replace(/,/g, ''))
+          deposit: parseInt(formData.deposit.replace(/,/g, '')),
+          caution: formData.precautions
         })
       });
 
@@ -270,13 +296,13 @@ export default function NewPostPage() {
         throw new Error(text || '게시글 상세 정보 업데이트 실패');
       }
 
-      const updatedPost = await response.json();
-      console.log('Post detail updated:', updatedPost);
+      const result = await response.json();
+      console.log('✅ 최종 등록 완료:', result);
 
       // 메인 화면으로 이동
       router.push('/');
     } catch (error: any) {
-      console.error('Post detail update error:', error);
+      console.error('Final submit error:', error);
       alert('등록 중 오류가 발생했어요: ' + (error?.message ?? ''));
     }
   };
@@ -286,21 +312,18 @@ export default function NewPostPage() {
       <Header />
       
       <div className="pt-20 pb-24">
+        {/* 상단 스텝 바 */}
         <div className="px-4 py-4">
           <div className="flex items-center justify-between mb-2">
             {[1, 2, 3, 4].map((step) => (
               <div key={step} className="flex items-center">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                  step <= currentStep
-                    ? 'bg-purple-500 text-white'
-                    : 'bg-gray-200 text-gray-400'
+                  step <= currentStep ? 'bg-purple-500 text-white' : 'bg-gray-200 text-gray-400'
                 }`}>
                   {step}
                 </div>
                 {step < 4 && (
-                  <div className={`w-12 h-1 mx-2 ${
-                    step < currentStep ? 'bg-purple-500' : 'bg-gray-200'
-                  }`}></div>
+                  <div className={`w-12 h-1 mx-2 ${step < currentStep ? 'bg-purple-500' : 'bg-gray-200'}`}></div>
                 )}
               </div>
             ))}
@@ -313,6 +336,7 @@ export default function NewPostPage() {
           </div>
         </div>
 
+        {/* 컨텐츠 영역 */}
         <div className="px-4 pb-6">
           {currentStep === 1 && (
             <Step1BasicInfo
@@ -345,6 +369,8 @@ export default function NewPostPage() {
               onInputChange={handleInputChange}
               onSubmit={handleSubmit}
               onPrevious={() => setCurrentStep(3)}
+              aiSuggestion={aiSuggestion}
+              isAiLoading={isAiLoading}
             />
           )}
         </div>
@@ -354,4 +380,3 @@ export default function NewPostPage() {
     </div>
   );
 }
-

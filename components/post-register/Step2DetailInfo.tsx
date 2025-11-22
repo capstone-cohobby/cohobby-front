@@ -45,19 +45,6 @@ export default function Step2DetailInfo({ formData, onInputChange, onNext, onPre
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          주의사항(보증금 규칙)
-        </label>
-        <textarea
-          value={formData.precautions}
-          onChange={(e) => onInputChange('precautions', e.target.value)}
-          placeholder="보증금 및 대여 시 주의할 점을 적어주세요. 예: 물에 젖지 않도록 주의, 충격에 민감함, 연체 시 추가 요금 발생"
-          rows={3}
-          className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
-        />
-      </div>
-
-      <div>
         <label className="block text-sm font-medium text-gray-700 mb-3">
           대여 가능 기간
         </label>
