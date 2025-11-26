@@ -213,7 +213,8 @@ export default function NewPostPage() {
         body: JSON.stringify({
           name: formData.goods,
           bought_at: formData.purchaseDate,
-          precondition: formData.defects
+          precondition: formData.defects,
+          hobbyId: hobbyId
         })
       })
       .then(res => res.json())
@@ -225,11 +226,19 @@ export default function NewPostPage() {
             point: data.result.suggestedPointPrice,
             max: data.result.suggestedHighPrice,
             deposit: data.result.suggestedDeposit,
-            reason: data.result.reason,
-            confidence: data.result.confidence 
+            priceReason: data.result.priceReason,
+            depositReason: data.result.depositReason,
+            ruleReason: data.result.ruleReason,
+            evidence: data.result.evidence || [],
+            confidence: data.result.confidence,
+            decision: data.result.decision,
+            // 참고 가격 정보 추가
+            referenceUrl: data.result.referenceUrl,
+            referenceType: data.result.referenceType,
+            referencePrice: data.result.referencePrice,
           });
           
-          // 🔥 [자동 입력] 대여료, 보증금, 주의사항 자동 채우기
+          //[자동 입력] 대여료, 보증금, 주의사항 자동 채우기
           setFormData(prev => ({
              ...prev,
              dailyPrice: data.result.suggestedPointPrice?.toLocaleString() || '',
