@@ -80,6 +80,15 @@ export async function getReadStatus(roomId: number) {
   }>(`/chatting/rooms/${roomId}/read-status`);
 }
 
+// 상대방의 읽음 상태 가져오기
+export async function getPeerReadStatus(roomId: number) {
+  return apiFetch<{
+    roomId: number;
+    userId: number;
+    lastReadMessageId: number;
+  }>(`/chatting/rooms/${roomId}/read-status/peer`);
+}
+
 // 현재 사용자 정보 가져오기
 export async function getCurrentUser() {
   return apiFetch<{
