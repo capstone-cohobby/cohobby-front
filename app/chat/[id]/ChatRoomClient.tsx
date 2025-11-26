@@ -1,13 +1,25 @@
-
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import Header from '../../../components/Header';
 import BottomNavigation from '../../../components/BottomNavigation';
+import { getChatMessages, getCurrentUser, getChatRooms, getUserProfile, getReadStatus } from '../../../lib/api';
+import { connectWebSocket, disconnectWebSocket, getStompClient } from '../../../lib/websocket';
+import { DEFAULT_PROFILE_IMAGE } from '../../../lib/constants';
+import { Client } from '@stomp/stompjs';
 
 interface ChatRoomClientProps {
   chatId: string;
+}
+
+interface Message {
+  id: number;
+  type: 'sent' | 'received';
+  message: string;
+  time: string;
+  senderId?: number;
+  isRead: boolean;
+  avatar?: string;
 }
 
 export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
@@ -15,150 +27,309 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
   const [showReportModal, setShowReportModal] = useState(false);
   const [selectedReportReason, setSelectedReportReason] = useState('');
   const [reportDetails, setReportDetails] = useState('');
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [currentUser, setCurrentUser] = useState<{ id: number; nickname: string } | null>(null);
+  const [peerInfo, setPeerInfo] = useState<{ name: string; avatar: string; id: number } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [wsConnected, setWsConnected] = useState(false);
+  const [lastReadOfPeer, setLastReadOfPeer] = useState<number>(0);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const roomSubRef = useRef<any>(null);
+  const readSubRef = useRef<any>(null);
+  const roomInfoRef = useRef<{ roomId: number; userId: number; peerId: number } | null>(null);
 
-  const handleUserProfileClick = () => {
-    router.push(`/user/${chatId}`);
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // --- existing code start ---
-  const [messages, setMessages] = useState([
-    {
-      id: 1,
-      type: 'received',
-      sender: '김민수',
-      message: '안녕하세요! 골프채 세트 대여 가능한가요?',
-      time: '오후 2:30',
-      avatar:
-        'https://readdy.ai/api/search-image?query=friendly%20young%20korean%20man%20smiling%20profile%20photo%20with%20clean%20background%20for%20chat%20application&width=40&height=40&seq=chat1&orientation=squarish',
-      isRead: true
-    },
-    {
-      id: 2,
-      type: 'sent',
-      message: '네, 가능합니다! 언제 필요하신가요?',
-      time: '오후 2:32',
-      isRead: true
-    },
-    {
-      id: 3,
-      type: 'received',
-      sender: '김민수',
-      message: '이번 주말에 사용하려고 하는데, 금요일 저녁에 픽업 가능할까요?',
-      time: '오후 2:33',
-      avatar:
-        'https://readdy.ai/api/search-image?query=friendly%20young%20korean%20man%20smiling%20profile%20photo%20with%20clean%20background%20for%20chat%20application&width=40&height=40&seq=chat1&orientation=squarish',
-      isRead: true
-    },
-    {
-      id: 4,
-      type: 'sent',
-      message: '금요일 6시 이후면 가능해요! 위치는 강남역 근처입니다.',
-      time: '오후 2:35',
-      isRead: true
-    },
-    {
-      id: 5,
-      type: 'received',
-      sender: '김민수',
-      message: '완벽해요! 대여 기간은 2박 3일 정도로 생각하고 있어요.',
-      time: '오후 2:37',
-      avatar:
-        'https://readdy.ai/api/search-image?query=friendly%20young%20korean%20man%20smiling%20profile%20photo%20with%20clean%20background%20for%20chat%20application&width=40&height=40&seq=chat1&orientation=squarish',
-      isRead: true
-    },
-    {
-      id: 6,
-      type: 'sent',
-      message: '2박 3일이면 15,000원입니다. 보증금은 50,000원이구요.',
-      time: '오후 2:40',
-      isRead: true
-    },
-    {
-      id: 7,
-      type: 'received',
-      sender: '김민수',
-      message: '좋아요! 그럼 내일 오후에 만나서 거래할 수 있을까요?',
-      time: '오후 2:42',
-      avatar:
-        'https://readdy.ai/api/search-image?query=friendly%20young%20korean%20man%20smiling%20profile%20photo%20with%20clean%20background%20for%20chat%20application&width=40&height=40&seq=chat1&orientation=squarish',
-      isRead: true
-    },
-    {
-      id: 8,
-      type: 'sent',
-      message: '네 좋습니다! 강남역 2번 출구에서 만나요.',
-      time: '오후 2:45',
-      isRead: false
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  useEffect(() => {
+    let mounted = true;
+    
+    const initializeChat = async () => {
+      try {
+        setLoading(true);
+        const roomId = parseInt(chatId);
+        
+        // 현재 사용자 정보 가져오기
+        const user = await getCurrentUser();
+        if (!mounted) return;
+        setCurrentUser(user);
+
+        // 채팅방 정보 가져오기
+        const rooms = await getChatRooms();
+        if (!mounted) return;
+        const room = rooms.find(r => r.id === roomId);
+        
+        if (!room) {
+          alert('채팅방을 찾을 수 없습니다.');
+          router.push('/chat');
+          return;
+        }
+
+        // 상대방 정보 설정
+        const peerId = user.id === room.ownerId ? room.borrowerId : room.ownerId;
+        const peerProfile = await getUserProfile(peerId);
+        if (!mounted) return;
+        setPeerInfo({
+          name: peerProfile.nickname || '사용자',
+          avatar: peerProfile.profilePicture || DEFAULT_PROFILE_IMAGE,
+          id: peerId
+        });
+
+        // 기존 메시지 로드
+        const chatMessages = await getChatMessages(roomId);
+        if (!mounted) return;
+        
+        const formattedMessages: Message[] = chatMessages.map(msg => {
+          const isSent = msg.senderId === user.id;
+          return {
+            id: msg.id,
+            type: isSent ? 'sent' : 'received',
+            message: msg.text,
+            time: formatMessageTime(msg.time),
+            senderId: msg.senderId,
+            isRead: false,
+            avatar: !isSent ? (peerProfile.profilePicture || DEFAULT_PROFILE_IMAGE) : undefined
+          };
+        });
+        setMessages(formattedMessages);
+
+        // 읽음 상태 가져오기 (현재 사용자의 읽음 상태)
+        try {
+          const readStatus = await getReadStatus(roomId);
+          if (mounted) {
+            // 현재 사용자의 마지막 읽은 메시지 ID 저장 (자신이 보낸 메시지의 읽음 상태 확인용)
+            // 상대방의 읽음 상태는 WebSocket으로 받습니다
+          }
+        } catch (err) {
+          console.error('읽음 상태 가져오기 실패:', err);
+        }
+        
+        // 상대방의 읽음 상태는 나중에 WebSocket으로 받습니다
+
+        // 채팅방 정보 저장
+        roomInfoRef.current = { roomId, userId: user.id, peerId };
+
+        // WebSocket 연결 및 구독
+        try {
+          const client = connectWebSocket(
+            () => {
+              if (!mounted) return;
+              setWsConnected(true);
+              // 연결 완료 후 enterRoom 호출
+              if (roomInfoRef.current) {
+                enterRoom(roomInfoRef.current.roomId, roomInfoRef.current.userId, roomInfoRef.current.peerId);
+              }
+            },
+            (error) => {
+              console.error('WebSocket 연결 오류:', error);
+              if (mounted) {
+                setWsConnected(false);
+                alert('WebSocket 연결에 실패했습니다. 페이지를 새로고침해주세요.');
+              }
+            }
+          );
+        } catch (error) {
+          console.error('WebSocket 연결 초기화 실패:', error);
+          alert('WebSocket 연결 초기화에 실패했습니다.');
+        }
+
+      } catch (err) {
+        console.error('채팅방 초기화 실패:', err);
+        alert('채팅방을 불러오는데 실패했습니다.');
+        router.push('/chat');
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    initializeChat();
+
+    return () => {
+      mounted = false;
+      exitRoom();
+      disconnectWebSocket();
+    };
+  }, [chatId, router]);
+
+  const enterRoom = (roomId: number, currentUserId: number, peerUserId: number) => {
+    const client = getStompClient();
+    if (!client) {
+      console.error('WebSocket 클라이언트가 없습니다.');
+      return;
     }
-  ]);
-
-  const [newMessage, setNewMessage] = useState('');
-
-  const chatRooms = [
-    {
-      id: 1,
-      name: '김민수',
-      lastMessage: '금요일 6시 이후면 가능해요!',
-      time: '오후 2:35',
-      unread: 0,
-      avatar:
-        'https://readdy.ai/api/search-image?query=friendly%20young%20korean%20man%20smiling%20profile%20photo%20with%20clean%20background%20for%20chat%20application&width=50&height=50&seq=chat1&orientation=squarish',
-      item: '골프채 세트'
-    },
-    {
-      id: 2,
-      name: '박지영',
-      lastMessage: '카메라 상태 정말 좋네요! 감사합니다',
-      time: '오전 11:20',
-      unread: 2,
-      avatar:
-        'https://readdy.ai/api/search-image?query=friendly%20young%20korean%20woman%20smiling%20profile%20photo%20with%20clean%20background%20for%20chat%20application&width=50&height=50&seq=chat2&orientation=squarish',
-      item: '미러리스 카메라'
-    },
-    {
-      id: 3,
-      name: '이준호',
-      lastMessage: '텐트 반납 완료했습니다!',
-      time: '어제',
-      unread: 0,
-      avatar:
-        'https://readdy.ai/api/search-image?query=friendly%20young%20korean%20man%20with%20casual%20style%20profile%20photo%20with%20clean%20background%20for%20chat%20application&width=50&height=50&seq=chat3&orientation=squarish',
-      item: '캠핑 텐트'
-    },
-    {
-      id: 4,
-      name: '최수진',
-      lastMessage: '기타 레슨 정보 공유해주셔서 감사해요!',
-      time: '2일 전',
-      unread: 1,
-      avatar:
-        'https://readdy.ai/api/search-image?query=friendly%20young%20korean%20woman%20with%20artistic%20style%20profile%20photo%20with%20clean%20background%20for%20chat%20application&width=50&height=50&seq=chat4&orientation=squarish',
-      item: '어쿠스틱 기타'
+    
+    // 연결 대기 로직
+    if (!client.connected) {
+      console.log('WebSocket 연결 대기 중...');
+      // 연결이 완료될 때까지 재시도
+      let retryCount = 0;
+      const maxRetries = 50; // 5초 (100ms * 50)
+      
+      const checkConnection = setInterval(() => {
+        const currentClient = getStompClient();
+        retryCount++;
+        
+        if (currentClient && currentClient.connected) {
+          clearInterval(checkConnection);
+          // 연결 완료 후 구독 시작
+          setupSubscriptions(roomId, currentUserId, peerUserId);
+        } else if (retryCount >= maxRetries) {
+          clearInterval(checkConnection);
+          console.error('WebSocket 연결 타임아웃');
+          alert('WebSocket 연결에 시간이 너무 오래 걸립니다. 페이지를 새로고침해주세요.');
+        }
+      }, 100);
+      return;
     }
-  ];
+    
+    setupSubscriptions(roomId, currentUserId, peerUserId);
+  };
 
-  const currentChat = chatRooms.find(
-    (room) => room.id === parseInt(chatId)
-  );
+  const setupSubscriptions = (roomId: number, currentUserId: number, peerUserId: number) => {
+    const client = getStompClient();
+    if (!client || !client.connected) {
+      console.error('WebSocket이 연결되지 않았습니다.');
+      return;
+    }
+
+    // 기존 구독 해제
+    if (roomSubRef.current) {
+      roomSubRef.current.unsubscribe();
+      roomSubRef.current = null;
+    }
+    if (readSubRef.current) {
+      readSubRef.current.unsubscribe();
+      readSubRef.current = null;
+    }
+    
+    console.log(`채팅방 ${roomId} 구독 시작`);
+
+    // 새 메시지 구독
+    roomSubRef.current = client.subscribe(`/sub/chatting/room/${roomId}`, (frame) => {
+      try {
+        const msg = JSON.parse(frame.body);
+        const newMsg: Message = {
+          id: msg.id,
+          type: msg.senderId === currentUserId ? 'sent' : 'received',
+          message: msg.text,
+          time: formatMessageTime(msg.time),
+          senderId: msg.senderId,
+          isRead: false,
+          avatar: msg.senderId !== currentUserId ? (peerInfo?.avatar || DEFAULT_PROFILE_IMAGE) : undefined
+        };
+
+        setMessages((prev) => {
+          // 중복 메시지 체크
+          if (prev.some(m => m.id === newMsg.id)) {
+            return prev;
+          }
+          return [...prev, newMsg];
+        });
+
+        // 상대방이 보낸 메시지면 읽음 표시 전송
+        if (msg.senderId !== currentUserId) {
+          sendRead(roomId, currentUserId, msg.id);
+        }
+      } catch (err) {
+        console.error('메시지 파싱 오류:', err);
+      }
+    });
+
+    // 읽음 상태 구독
+    readSubRef.current = client.subscribe(`/sub/chatting/room/${roomId}/read`, (frame) => {
+      try {
+        const receipt = JSON.parse(frame.body);
+        if (receipt.userId !== currentUserId) {
+          setLastReadOfPeer(receipt.lastReadMessageId || 0);
+          setMessages((prev) => updateMessageReadStatus(prev, receipt.lastReadMessageId || 0));
+        }
+      } catch (err) {
+        console.error('읽음 상태 파싱 오류:', err);
+      }
+    });
+  };
+
+  const exitRoom = () => {
+    if (roomSubRef.current) {
+      roomSubRef.current.unsubscribe();
+      roomSubRef.current = null;
+    }
+    if (readSubRef.current) {
+      readSubRef.current.unsubscribe();
+      readSubRef.current = null;
+    }
+  };
 
   const sendMessage = () => {
-    if (newMessage.trim()) {
-      const newMsg = {
-        id: messages.length + 1,
-        type: 'sent' as const,
-        message: newMessage,
-        time: new Date().toLocaleTimeString('ko-KR', {
-          hour: 'numeric',
-          minute: '2-digit',
-          hour12: true
-        }),
-        isRead: false
-      };
-      setMessages([...messages, newMsg]);
-      setNewMessage('');
+    if (!newMessage.trim() || !currentUser) return;
+
+    const client = getStompClient();
+    if (!client || !client.connected) {
+      alert('WebSocket이 연결되지 않았습니다.');
+      return;
+    }
+
+    const roomId = parseInt(chatId);
+    const message = {
+      roomId: roomId,
+      text: newMessage.trim()
+    };
+
+    client.publish({
+      destination: '/pub/chatting/send',
+      body: JSON.stringify(message)
+    });
+
+    setNewMessage('');
+  };
+
+  const sendRead = (roomId: number, userId: number, messageId: number) => {
+    const client = getStompClient();
+    if (!client || !client.connected) return;
+
+    const payload = {
+      roomId: roomId,
+      userId: userId,
+      lastMessageId: messageId
+    };
+
+    client.publish({
+      destination: '/pub/chatting/read',
+      body: JSON.stringify(payload)
+    });
+  };
+
+  const updateMessageReadStatus = (msgs: Message[], lastReadId: number): Message[] => {
+    return msgs.map(msg => {
+      if (msg.type === 'sent' && msg.id && msg.id <= lastReadId) {
+        return { ...msg, isRead: true };
+      }
+      return msg;
+    });
+  };
+
+  const formatMessageTime = (timeStr: string): string => {
+    const date = new Date(timeStr);
+    const hours = date.getHours();
+    const minutes = date.getMinutes();
+    const ampm = hours >= 12 ? '오후' : '오전';
+    const displayHours = hours % 12 || 12;
+    return `${ampm} ${displayHours}:${minutes.toString().padStart(2, '0')}`;
+  };
+
+  const handleUserProfileClick = () => {
+    if (peerInfo) {
+      router.push(`/user/${peerInfo.id}`);
     }
   };
-  // --- existing code end ---
 
   const reportReasons = [
     '제품에 공지된 것 이상의 하자가 있음',
@@ -176,15 +347,22 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
     }
   };
 
-  if (!currentChat) {
-    return <div>채팅방을 찾을 수 없습니다</div>;
+  if (loading || !currentUser || !peerInfo) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-green-50">
+        <div className="flex items-center justify-center h-screen">
+          <p className="text-gray-500">로딩 중...</p>
+        </div>
+        <BottomNavigation />
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-green-50">
-      <div className="flex flex-col h-screen">
-        {/* 채팅 헤더 - 상단 패딩 제거하고 전화/점세개 버튼 제거, 신고하기 버튼을 맨 오른쪽으로 */}
-        <div className="px-4 py-4 bg-white/90 backdrop-blur-sm border-b border-white/20">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-green-50 pb-24">
+      <div className="flex flex-col h-[calc(100vh-6rem)]">
+        {/* 채팅 헤더 */}
+        <div className="px-4 py-4 bg-white/90 backdrop-blur-sm border-b border-white/20 flex-shrink-0">
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.push('/chat')}
@@ -198,13 +376,13 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
               className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity flex-1"
             >
               <img
-                src={currentChat.avatar}
+                src={peerInfo.avatar}
                 alt=""
                 className="w-10 h-10 rounded-full object-cover"
               />
 
               <div className="text-left">
-                <h3 className="font-semibold text-gray-800">{currentChat.name}</h3>
+                <h3 className="font-semibold text-gray-800">{peerInfo.name}</h3>
                 <p className="text-xs text-green-600">온라인</p>
               </div>
             </button>
@@ -219,7 +397,7 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
         </div>
 
         {/* 안전 거래 안내 */}
-        <div className="px-4 py-3 bg-yellow-50/80 backdrop-blur-sm border-b border-yellow-100">
+        <div className="px-4 py-3 bg-yellow-50/80 backdrop-blur-sm border-b border-yellow-100 flex-shrink-0">
           <div className="flex items-start gap-2">
             <i className="ri-shield-check-line text-yellow-600 text-lg flex-shrink-0 mt-0.5"></i>
             <div className="text-xs text-yellow-700 leading-relaxed">
@@ -244,9 +422,9 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
                   message.type === 'sent' ? 'flex-row-reverse' : 'flex-row'
                 }`}
               >
-                {message.type === 'received' && (
+                {message.type === 'received' && message.avatar && (
                   <img
-                    src={message.avatar || ''}
+                    src={message.avatar}
                     alt=""
                     className="w-8 h-8 rounded-full object-cover flex-shrink-0"
                   />
@@ -282,10 +460,11 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
               </div>
             </div>
           ))}
+          <div ref={messagesEndRef} />
         </div>
 
         {/* 메시지 입력 */}
-        <div className="px-4 py-4 bg-white/90 backdrop-blur-sm border-t border-white/20">
+        <div className="px-4 py-4 bg-white/90 backdrop-blur-sm border-t border-white/20 flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="flex-1 relative">
               <input
