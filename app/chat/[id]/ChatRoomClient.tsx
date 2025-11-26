@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import BottomNavigation from '../../../components/BottomNavigation';
-import { getChatMessages, getCurrentUser, getChatRooms, getUserProfile, getReadStatus, getPeerReadStatus } from '../../../lib/api';
+import { getChatMessages, getCurrentUser, getChatRooms, getUserProfile, getReadStatus, getPeerReadStatus, updateRentDates } from '../../../lib/api';
 import { connectWebSocket, disconnectWebSocket, getStompClient } from '../../../lib/websocket';
 import { DEFAULT_PROFILE_IMAGE } from '../../../lib/constants';
 import { Client } from '@stomp/stompjs';
@@ -473,37 +473,60 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
     return `${month}월 ${day}일`;
   };
 
-  const handleSendDate = () => {
+  const handleSendDate = async () => {
     if (startDate) {
+      const roomId = parseInt(chatId);
       let dateMessage = '';
+      let startDateStr = '';
+      let endDateStr = '';
+      
+      // 날짜를 YYYY-MM-DD 형식으로 변환
+      const formatDateForAPI = (date: Date): string => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+      
       if (endDate) {
         // 날짜 범위: "대여 날짜를 {며칠} ~ {며칠}로 요청했어요!"
         const startFormatted = formatDateForMessage(startDate);
         const endFormatted = formatDateForMessage(endDate);
         dateMessage = `대여 날짜를 ${startFormatted} ~ ${endFormatted}로 요청했어요!`;
+        startDateStr = formatDateForAPI(startDate);
+        endDateStr = formatDateForAPI(endDate);
       } else {
         // 단일 날짜: "대여 날짜를 {며칠}로 요청했어요!"
         const dateFormatted = formatDateForMessage(startDate);
         dateMessage = `대여 날짜를 ${dateFormatted}로 요청했어요!`;
+        startDateStr = formatDateForAPI(startDate);
+        endDateStr = formatDateForAPI(startDate); // 단일 날짜인 경우 시작일과 종료일을 같게 설정
       }
       
-      // 날짜를 메시지로 전송
-      const roomId = parseInt(chatId);
-      const client = getStompClient();
-      if (client && client.connected) {
-        const message = {
-          roomId: roomId,
-          text: dateMessage
-        };
-        client.publish({
-          destination: '/pub/chatting/send',
-          body: JSON.stringify(message)
-        });
+      try {
+        // Rent 날짜 업데이트 API 호출
+        await updateRentDates(roomId, startDateStr, endDateStr);
+        
+        // 날짜를 메시지로 전송
+        const client = getStompClient();
+        if (client && client.connected) {
+          const message = {
+            roomId: roomId,
+            text: dateMessage
+          };
+          client.publish({
+            destination: '/pub/chatting/send',
+            body: JSON.stringify(message)
+          });
+        }
+        
+        setShowDatePicker(false);
+        setStartDate(null);
+        setEndDate(null);
+      } catch (error) {
+        console.error('날짜 업데이트 실패:', error);
+        alert('날짜 업데이트에 실패했습니다. 다시 시도해주세요.');
       }
-      
-      setShowDatePicker(false);
-      setStartDate(null);
-      setEndDate(null);
     }
   };
 

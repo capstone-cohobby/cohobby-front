@@ -105,3 +105,22 @@ export async function getCurrentUser() {
   }>('/auth/me');
 }
 
+// Rent 날짜 업데이트
+export async function updateRentDates(roomId: number, startDate: string, endDate: string) {
+  const response = await apiFetch<{
+    isSuccess: boolean;
+    code: string;
+    message: string;
+    result: {
+      rentId: number;
+    };
+  }>(`/rents/${roomId}/detail`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      startAt: startDate,
+      duedate: endDate
+    })
+  });
+  return response.result;
+}
+
