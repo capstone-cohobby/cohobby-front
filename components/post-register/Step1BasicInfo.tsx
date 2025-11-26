@@ -117,6 +117,25 @@ export default function Step1BasicInfo({ formData, onInputChange, onNext }: Step
         </div>
       </div>
 
+      {/* 가이드 카드 */}
+      <div className="bg-yellow-50 p-4 rounded-2xl">
+        <div className="flex items-start gap-3">
+          <div className="w-8 h-8 bg-yellow-500 rounded-xl flex items-center justify-center flex-shrink-0">
+            <i className="ri-lightbulb-line text-white text-sm"></i>
+          </div>
+          <div>
+            <h3 className="font-medium text-yellow-800 text-sm mb-1">
+              입력 가이드
+            </h3>
+            <ul className="text-xs text-yellow-700 space-y-1">
+              <li>• 정확한 물품명을 기재할수록 AI 추천가가 정확해집니다</li>
+              <li>• 브랜드명, 모델명, 용량 등 구체적인 정보를 포함해주세요</li>
+              <li>• 예: "Sony A7III 미러리스 카메라" (O) / "카메라" (X)</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
       <button
         onClick={onNext}
         disabled={!formData.goods}
