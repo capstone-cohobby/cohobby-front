@@ -80,6 +80,15 @@ export async function getReadStatus(roomId: number) {
   }>(`/chatting/rooms/${roomId}/read-status`);
 }
 
+// 상대방의 읽음 상태 가져오기
+export async function getPeerReadStatus(roomId: number) {
+  return apiFetch<{
+    roomId: number;
+    userId: number;
+    lastReadMessageId: number;
+  }>(`/chatting/rooms/${roomId}/read-status/peer`);
+}
+
 // 현재 사용자 정보 가져오기
 export async function getCurrentUser() {
   return apiFetch<{
@@ -94,5 +103,24 @@ export async function getCurrentUser() {
     phoneNumber: string | null;
     createdAt: string;
   }>('/auth/me');
+}
+
+// Rent 날짜 업데이트
+export async function updateRentDates(roomId: number, startDate: string, endDate: string) {
+  const response = await apiFetch<{
+    isSuccess: boolean;
+    code: string;
+    message: string;
+    result: {
+      rentId: number;
+    };
+  }>(`/rents/${roomId}/detail`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      startAt: startDate,
+      duedate: endDate
+    })
+  });
+  return response.result;
 }
 

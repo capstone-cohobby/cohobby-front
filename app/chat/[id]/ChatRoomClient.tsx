@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import BottomNavigation from '../../../components/BottomNavigation';
-import { getChatMessages, getCurrentUser, getChatRooms, getUserProfile, getReadStatus } from '../../../lib/api';
+import { getChatMessages, getCurrentUser, getChatRooms, getUserProfile, getReadStatus, getPeerReadStatus, updateRentDates } from '../../../lib/api';
 import { connectWebSocket, disconnectWebSocket, getStompClient } from '../../../lib/websocket';
 import { DEFAULT_PROFILE_IMAGE } from '../../../lib/constants';
 import { Client } from '@stomp/stompjs';
@@ -27,6 +27,11 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
   const [showReportModal, setShowReportModal] = useState(false);
   const [selectedReportReason, setSelectedReportReason] = useState('');
   const [reportDetails, setReportDetails] = useState('');
+  const [showActionMenu, setShowActionMenu] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [currentUser, setCurrentUser] = useState<{ id: number; nickname: string } | null>(null);
@@ -37,7 +42,7 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const roomSubRef = useRef<any>(null);
   const readSubRef = useRef<any>(null);
-  const roomInfoRef = useRef<{ roomId: number; userId: number; peerId: number } | null>(null);
+  const roomInfoRef = useRef<{ roomId: number; userId: number; peerId: number; lastMessageId?: number } | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -46,6 +51,25 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // 액션 메뉴 외부 클릭 시 닫기
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showActionMenu) {
+        const target = event.target as HTMLElement;
+        if (!target.closest('.action-menu-container')) {
+          setShowActionMenu(false);
+        }
+      }
+    };
+
+    if (showActionMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [showActionMenu]);
 
   useEffect(() => {
     let mounted = true;
@@ -85,35 +109,56 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
         const chatMessages = await getChatMessages(roomId);
         if (!mounted) return;
         
+        // 상대방의 읽음 상태 가져오기
+        let peerLastReadMessageId = 0;
+        try {
+          const peerReadStatus = await getPeerReadStatus(roomId);
+          if (mounted && peerReadStatus.lastReadMessageId) {
+            peerLastReadMessageId = peerReadStatus.lastReadMessageId;
+            setLastReadOfPeer(peerLastReadMessageId);
+          }
+        } catch (err) {
+          console.error('상대방 읽음 상태 가져오기 실패:', err);
+        }
+        
         const formattedMessages: Message[] = chatMessages.map(msg => {
           const isSent = msg.senderId === user.id;
+          // 내가 보낸 메시지이고, 상대방이 읽었다면 isRead를 true로 설정
+          const isRead = isSent && msg.id <= peerLastReadMessageId;
           return {
             id: msg.id,
             type: isSent ? 'sent' : 'received',
             message: msg.text,
             time: formatMessageTime(msg.time),
             senderId: msg.senderId,
-            isRead: false,
+            isRead: isRead,
             avatar: !isSent ? (peerProfile.profilePicture || DEFAULT_PROFILE_IMAGE) : undefined
           };
         });
         setMessages(formattedMessages);
 
-        // 읽음 상태 가져오기 (현재 사용자의 읽음 상태)
+        // 현재 사용자의 마지막 읽은 메시지 ID 저장 (필요시 사용)
         try {
           const readStatus = await getReadStatus(roomId);
           if (mounted) {
-            // 현재 사용자의 마지막 읽은 메시지 ID 저장 (자신이 보낸 메시지의 읽음 상태 확인용)
-            // 상대방의 읽음 상태는 WebSocket으로 받습니다
+            // 현재 사용자의 읽음 상태는 저장만 하고, 실제로는 사용하지 않음
+            // (상대방이 보낸 메시지에 대한 읽음 표시는 필요 없음)
           }
         } catch (err) {
           console.error('읽음 상태 가져오기 실패:', err);
         }
-        
-        // 상대방의 읽음 상태는 나중에 WebSocket으로 받습니다
 
         // 채팅방 정보 저장
         roomInfoRef.current = { roomId, userId: user.id, peerId };
+
+        // 채팅방 진입 시 상대방이 보낸 마지막 메시지 읽음 처리
+        // (WebSocket 연결 후 처리하기 위해 lastMessageId 저장)
+        const lastReceivedMessage = formattedMessages
+          .filter(msg => msg.senderId !== user.id)
+          .sort((a, b) => b.id - a.id)[0];
+        if (lastReceivedMessage) {
+          roomInfoRef.current.lastMessageId = lastReceivedMessage.id;
+        }
 
         // WebSocket 연결 및 구독
         try {
@@ -211,6 +256,12 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
     }
     
     console.log(`채팅방 ${roomId} 구독 시작`);
+
+    // 채팅방 진입 시 상대방이 보낸 마지막 메시지 읽음 처리
+    if (roomInfoRef.current?.lastMessageId) {
+      const lastMessageId = roomInfoRef.current.lastMessageId;
+      sendRead(roomId, currentUserId, lastMessageId);
+    }
 
     // 새 메시지 구독
     roomSubRef.current = client.subscribe(`/sub/chatting/room/${roomId}`, (frame) => {
@@ -347,6 +398,163 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
     }
   };
 
+  // 캘린더 관련 함수들
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDayOfWeek = firstDay.getDay();
+    
+    const days: (number | null)[] = [];
+    
+    // 빈 칸 추가 (이전 달의 마지막 날들)
+    for (let i = 0; i < startingDayOfWeek; i++) {
+      days.push(null);
+    }
+    
+    // 현재 달의 날짜들
+    for (let i = 1; i <= daysInMonth; i++) {
+      days.push(i);
+    }
+    
+    return days;
+  };
+
+  const isPastDate = (day: number): boolean => {
+    const checkDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+    const checkDateOnly = new Date(checkDate.getFullYear(), checkDate.getMonth(), checkDate.getDate());
+    const today = new Date();
+    const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    return checkDateOnly < todayOnly;
+  };
+
+  const handleDateSelect = (day: number) => {
+    // 과거 날짜는 선택 불가
+    if (isPastDate(day)) {
+      return;
+    }
+    
+    const newDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+    const dateOnly = new Date(newDate.getFullYear(), newDate.getMonth(), newDate.getDate());
+    
+    if (!startDate) {
+      // 시작 날짜 선택
+      setStartDate(dateOnly);
+      setEndDate(null);
+    } else if (!endDate) {
+      // 종료 날짜 선택
+      if (dateOnly < startDate) {
+        // 이전 날짜를 선택하면 시작 날짜를 재설정
+        setStartDate(dateOnly);
+        setEndDate(null);
+      } else {
+        setEndDate(dateOnly);
+      }
+    } else {
+      // 둘 다 선택되어 있으면 새로운 시작 날짜로 재시작
+      setStartDate(dateOnly);
+      setEndDate(null);
+    }
+  };
+
+  const handlePrevMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
+  };
+
+  const handleNextMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
+  };
+
+  const formatDateForMessage = (date: Date): string => {
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    return `${month}월 ${day}일`;
+  };
+
+  const handleSendDate = async () => {
+    if (startDate) {
+      const roomId = parseInt(chatId);
+      let dateMessage = '';
+      let startDateStr = '';
+      let endDateStr = '';
+      
+      // 날짜를 YYYY-MM-DD 형식으로 변환
+      const formatDateForAPI = (date: Date): string => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+      
+      if (endDate) {
+        // 날짜 범위: "대여 날짜를 {며칠} ~ {며칠}로 요청했어요!"
+        const startFormatted = formatDateForMessage(startDate);
+        const endFormatted = formatDateForMessage(endDate);
+        dateMessage = `대여 날짜를 ${startFormatted} ~ ${endFormatted}로 요청했어요!`;
+        startDateStr = formatDateForAPI(startDate);
+        endDateStr = formatDateForAPI(endDate);
+      } else {
+        // 단일 날짜: "대여 날짜를 {며칠}로 요청했어요!"
+        const dateFormatted = formatDateForMessage(startDate);
+        dateMessage = `대여 날짜를 ${dateFormatted}로 요청했어요!`;
+        startDateStr = formatDateForAPI(startDate);
+        endDateStr = formatDateForAPI(startDate); // 단일 날짜인 경우 시작일과 종료일을 같게 설정
+      }
+      
+      try {
+        // Rent 날짜 업데이트 API 호출
+        await updateRentDates(roomId, startDateStr, endDateStr);
+        
+        // 날짜를 메시지로 전송
+        const client = getStompClient();
+        if (client && client.connected) {
+          const message = {
+            roomId: roomId,
+            text: dateMessage
+          };
+          client.publish({
+            destination: '/pub/chatting/send',
+            body: JSON.stringify(message)
+          });
+        }
+        
+        setShowDatePicker(false);
+        setStartDate(null);
+        setEndDate(null);
+      } catch (error) {
+        console.error('날짜 업데이트 실패:', error);
+        alert('날짜 업데이트에 실패했습니다. 다시 시도해주세요.');
+      }
+    }
+  };
+
+  const formatMonthYear = (date: Date) => {
+    return `${date.getFullYear()}년 ${date.getMonth() + 1}월`;
+  };
+
+  const isDateInRange = (day: number | null): { isStart: boolean; isEnd: boolean; isInRange: boolean } => {
+    if (!startDate || day === null) {
+      return { isStart: false, isEnd: false, isInRange: false };
+    }
+    
+    const checkDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+    const checkDateOnly = new Date(checkDate.getFullYear(), checkDate.getMonth(), checkDate.getDate());
+    const startDateOnly = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+    
+    const isStart = checkDateOnly.getTime() === startDateOnly.getTime();
+    
+    if (endDate) {
+      const endDateOnly = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+      const isEnd = checkDateOnly.getTime() === endDateOnly.getTime();
+      const isInRange = checkDateOnly >= startDateOnly && checkDateOnly <= endDateOnly;
+      return { isStart, isEnd, isInRange };
+    }
+    
+    return { isStart, isEnd: false, isInRange: false };
+  };
+
   if (loading || !currentUser || !peerInfo) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-green-50">
@@ -464,8 +672,62 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
         </div>
 
         {/* 메시지 입력 */}
-        <div className="px-4 py-4 bg-white/90 backdrop-blur-sm border-t border-white/20 flex-shrink-0">
+        <div className="px-4 py-4 bg-white/90 backdrop-blur-sm border-t border-white/20 flex-shrink-0 relative action-menu-container">
+          {/* 액션 메뉴 팝업 */}
+          {showActionMenu && (
+            <div className="absolute bottom-full left-4 mb-2 bg-white rounded-2xl shadow-lg border border-gray-200 p-4 min-w-[200px] z-10">
+              <button
+                onClick={() => setShowActionMenu(false)}
+                className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-600"
+              >
+                <i className="ri-close-line text-lg"></i>
+              </button>
+              
+              <button
+                onClick={() => {
+                  setShowActionMenu(false);
+                  setStartDate(null); // 모달 열 때 선택 초기화
+                  setEndDate(null);
+                  setShowDatePicker(true);
+                }}
+                className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-purple-50 transition-colors mb-2"
+              >
+                <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <i className="ri-calendar-line text-purple-600 text-xl"></i>
+                </div>
+                <div className="text-left flex-1">
+                  <p className="text-sm font-semibold text-gray-800">날짜 선택</p>
+                  <p className="text-xs text-gray-500">대여 날짜를 설정하세요</p>
+                </div>
+              </button>
+
+              <button
+                onClick={() => {
+                  setShowActionMenu(false);
+                  // 결제하기 기능 구현
+                  alert('결제하기 기능을 구현해주세요.');
+                }}
+                className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-green-50 transition-colors"
+              >
+                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <i className="ri-wallet-line text-green-600 text-xl"></i>
+                </div>
+                <div className="text-left flex-1">
+                  <p className="text-sm font-semibold text-gray-800">결제하기</p>
+                  <p className="text-xs text-gray-500">대여료를 결제하세요</p>
+                </div>
+              </button>
+            </div>
+          )}
+
           <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setShowActionMenu(!showActionMenu)}
+              className="w-10 h-10 flex items-center justify-center"
+            >
+              <i className="ri-add-line text-gray-600 text-xl"></i>
+            </button>
+
             <div className="flex-1 relative">
               <input
                 type="text"  
@@ -490,6 +752,129 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
           </div>
         </div>
       </div>
+
+      {/* 날짜 선택 모달 */}
+      {showDatePicker && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 pb-32">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-sm">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-bold text-gray-800">대여 날짜 선택</h3>
+              <button
+                onClick={() => {
+                  setShowDatePicker(false);
+                  setStartDate(null);
+                  setEndDate(null);
+                }}
+                className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600"
+              >
+                <i className="ri-close-line text-xl"></i>
+              </button>
+            </div>
+
+            {/* 월/년 네비게이션 */}
+            <div className="flex items-center justify-between mb-4">
+              <button
+                onClick={handlePrevMonth}
+                className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded-full"
+              >
+                <i className="ri-arrow-left-s-line text-xl"></i>
+              </button>
+              <h4 className="text-base font-semibold text-gray-800">
+                {formatMonthYear(currentMonth)}
+              </h4>
+              <button
+                onClick={handleNextMonth}
+                className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded-full"
+              >
+                <i className="ri-arrow-right-s-line text-xl"></i>
+              </button>
+            </div>
+
+            {/* 요일 헤더 */}
+            <div className="grid grid-cols-7 gap-1 mb-2">
+              {['일', '월', '화', '수', '목', '금', '토'].map((day, index) => (
+                <div
+                  key={day}
+                  className={`text-center text-xs font-medium py-2 ${
+                    index === 0 ? 'text-red-500' : index === 6 ? 'text-blue-500' : 'text-gray-600'
+                  }`}
+                >
+                  {day}
+                </div>
+              ))}
+            </div>
+
+            {/* 캘린더 그리드 */}
+            <div className="grid grid-cols-7 gap-1 mb-4">
+              {getDaysInMonth(currentMonth).map((day, index) => {
+                if (day === null) {
+                  return <div key={index} className="aspect-square"></div>;
+                }
+                
+                const isPast = isPastDate(day);
+                const { isStart, isEnd, isInRange } = isDateInRange(day);
+                const today = new Date();
+                const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+                const checkDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+                const checkDateOnly = new Date(checkDate.getFullYear(), checkDate.getMonth(), checkDate.getDate());
+                const isToday = todayOnly.getTime() === checkDateOnly.getTime();
+                
+                // 스타일 결정: 과거 날짜 > 선택된 날짜 > 범위 내 날짜 > 오늘 날짜 > 기본
+                let displayStyle = '';
+                let isDisabled = false;
+                if (isPast) {
+                  displayStyle = 'bg-gray-100 text-gray-400 cursor-not-allowed';
+                  isDisabled = true;
+                } else if (isStart || isEnd) {
+                  displayStyle = 'bg-purple-500 text-white';
+                } else if (isInRange) {
+                  displayStyle = 'bg-purple-100 text-purple-700';
+                } else if (isToday) {
+                  displayStyle = 'bg-purple-50 text-purple-600 border border-purple-200';
+                } else {
+                  displayStyle = 'bg-gray-50 text-gray-700 hover:bg-gray-100';
+                }
+                
+                return (
+                  <button
+                    key={index}
+                    onClick={() => handleDateSelect(day)}
+                    disabled={isDisabled}
+                    className={`aspect-square rounded-lg text-sm font-medium transition-colors ${displayStyle} ${isDisabled ? 'opacity-50' : ''}`}
+                  >
+                    {day}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* 범례 */}
+            <div className="flex items-center justify-center gap-4 mb-6 text-xs text-gray-600">
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded bg-purple-500"></div>
+                <span>선택</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded border border-gray-300"></div>
+                <span>가능</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded border border-gray-300"></div>
+                <span>불가</span>
+              </div>
+            </div>
+
+            {/* 날짜 전송하기 버튼 */}
+            <button
+              onClick={handleSendDate}
+              disabled={!startDate}
+              className="w-full py-3 bg-gray-200 text-gray-600 rounded-2xl font-medium hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              날짜 전송하기
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 신고하기 모달 */}
       {showReportModal && (
