@@ -300,3 +300,29 @@ export async function getPostDetail(postId: number) {
   return response.result;
 }
 
+// 게시물 이미지 업로드
+export async function uploadPostImages(postId: number, images: File[]) {
+  const formData = new FormData();
+  images.forEach((image) => {
+    formData.append('images', image);
+  });
+
+  const authHeader = getAuthHeader();
+  const headers: HeadersInit = {
+    ...(authHeader && { Authorization: authHeader }),
+  };
+
+  const response = await fetch(`${API_BASE_URL}/posts/${postId}/image`, {
+    method: 'POST',
+    headers,
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error(`API Error: ${response.statusText}`);
+  }
+
+  const result = await response.json();
+  return result.result || result;
+}
+
