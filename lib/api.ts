@@ -124,6 +124,84 @@ export async function updateRentDates(roomId: number, startDate: string, endDate
   return response.result;
 }
 
+// Rent 정보 가져오기 (roomId로)
+export async function getRentByRoomId(roomId: number) {
+  const response = await apiFetch<{
+    isSuccess: boolean;
+    code: string;
+    message: string;
+    result: {
+      id: number;
+      startAt: string | null;
+      duedate: string | null;
+      rule: string | null;
+      status: string;
+      totalPrice: number;
+      currency: string;
+      postId: number;
+      postGoods: string;
+    };
+  }>(`/rents/${roomId}/detail`, {
+    method: 'GET'
+  });
+  return {
+    id: response.result.id,
+    startAt: response.result.startAt,
+    duedate: response.result.duedate,
+    rule: response.result.rule,
+    status: response.result.status,
+    totalPrice: response.result.totalPrice || 0,
+    currency: response.result.currency || 'KRW',
+    post: {
+      id: response.result.postId,
+      goods: response.result.postGoods
+    }
+  };
+}
+
+// 결제 의도 생성
+export async function createPaymentIntent(rentId: number, amount: number) {
+  const response = await apiFetch<{
+    method: string;
+    amountValue: number;
+    amountCurrency: string;
+    orderName: string;
+    pgOrderNo: string;
+    customerName: string;
+    customerEmail: string;
+    successUrl: string;
+    failUrl: string;
+  }>('/payments/intents', {
+    method: 'POST',
+    body: JSON.stringify({
+      rentId: rentId,
+      amount: amount
+    })
+  });
+  return response;
+}
+
+// 결제 승인
+export async function confirmPayment(orderId: string, paymentKey: string, amount: number) {
+  const response = await apiFetch<{
+    paymentId: number;
+    paymentMethod: string;
+    amountCaptured: number;
+    capturedAt: string;
+    rentId: number;
+    orderName: string;
+    customerName: string;
+  }>('/payments/confirm', {
+    method: 'POST',
+    body: JSON.stringify({
+      orderId: orderId,
+      paymentKey: paymentKey,
+      amount: amount
+    })
+  });
+  return response;
+}
+
 // 채팅방 생성
 export async function createChatRoom(postId: number) {
   const response = await apiFetch<{
