@@ -520,27 +520,6 @@ export default function ProfilePage() {
     );
   }
 
-  // 토큰이 없으면 로그인 페이지로 리다이렉트
-  const token = typeof window !== 'undefined' 
-    ? (localStorage.getItem('accessToken') || localStorage.getItem('token'))
-    : null;
-  
-  if (!token) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-green-50 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-gray-600 mb-4">로그인이 필요합니다.</p>
-          <button
-            onClick={() => router.push('/login')}
-            className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600"
-          >
-            로그인하기
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   // profileData가 없어도 기본 정보는 표시 (API 호출 실패 시에도)
   // profileData가 null이면 기본값 사용
 
