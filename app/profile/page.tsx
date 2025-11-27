@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import Header from '../../components/Header';
 import BottomNavigation from '../../components/BottomNavigation';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+
 interface UserProfile {
   id: number;
   nickname: string | null;
@@ -41,7 +43,7 @@ export default function ProfilePage() {
         const timeoutId = setTimeout(() => controller.abort(), 10000); // 10초 타임아웃
 
         try {
-          const response = await fetch('http://localhost:8080/auth/me', {
+          const response = await fetch(`${API_BASE_URL}/auth/me`, {
             method: 'GET',
             headers: {
               'Content-Type': 'application/json',
@@ -260,7 +262,7 @@ export default function ProfilePage() {
       const timeoutId = setTimeout(() => controller.abort(), 5000); // 5초 타임아웃
       
       try {
-        const response = await fetch('http://localhost:8080/auth/logout', {
+        const response = await fetch(`${API_BASE_URL}/auth/logout`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

@@ -4,6 +4,8 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -42,7 +44,7 @@ function LoginContent() {
       : 'http://localhost:3000/login';
     
     // 백엔드 OAuth2 카카오 로그인 엔드포인트로 리다이렉트
-    const redirectUrl = `http://localhost:8080/oauth2/authorization/kakao?redirect_to=${encodeURIComponent(currentUrl)}`;
+    const redirectUrl = `${API_BASE_URL}/oauth2/authorization/kakao?redirect_to=${encodeURIComponent(currentUrl)}`;
     
     window.location.href = redirectUrl;
   };

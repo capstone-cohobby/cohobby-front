@@ -202,6 +202,26 @@ export async function confirmPayment(orderId: string, paymentKey: string, amount
   return response;
 }
 
+// 채팅방 생성
+export async function createChatRoom(postId: number) {
+  const response = await apiFetch<{
+    isSuccess: boolean;
+    code: string;
+    message: string;
+    result: {
+      id: number;
+      postId: number;
+      ownerId: number;
+      borrowerId: number;
+      name: string;
+    };
+  }>('/chatting/room', {
+    method: 'POST',
+    body: JSON.stringify({ postId })
+  });
+  return response.result;
+}
+
 // 게시물 조회 응답 타입
 export interface GetPostResponse {
   postId: number;
@@ -247,6 +267,36 @@ export async function getPostsByHobby(hobbyId: number) {
     message: string;
     result: GetPostResponse[];
   }>(`/posts/hobby/${hobbyId}`);
+  return response.result;
+}
+
+// 게시물 상세 조회 응답 타입
+export interface GetPostDetailResponse {
+  postId: number;
+  goods: string;
+  dailyPrice: number | null;
+  deposit: number | null;
+  images: string[];
+  availableFrom: string | null;
+  availableUntil: string | null;
+  purchasedAt: string | null;
+  defectStatus: string | null;
+  caution: string | null;
+  hobbyName: string | null;
+  categoryName: string | null;
+  userId: number | null;
+  userNickname: string | null;
+  userProfilePicture: string | null;
+}
+
+// 게시물 상세 조회
+export async function getPostDetail(postId: number) {
+  const response = await apiFetch<{
+    isSuccess: boolean;
+    code: string;
+    message: string;
+    result: GetPostDetailResponse;
+  }>(`/posts/${postId}`);
   return response.result;
 }
 
