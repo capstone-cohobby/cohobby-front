@@ -343,7 +343,7 @@ export default function ProductDetail({ productId }: ProductDetailProps) {
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50">
       <Header />
       
-      <div className="px-4 pt-6 pb-32">
+      <div className="px-4 pt-6 pb-60">
         {/* 상품 이미지 캐러셀 */}
         <div className="relative mb-6">
           <div className="aspect-square rounded-2xl overflow-hidden bg-white shadow-lg">
@@ -444,7 +444,7 @@ export default function ProductDetail({ productId }: ProductDetailProps) {
           </div>
 
           {/* 주의사항 */}
-          <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-4 border border-white/20 mb-8">
+          <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-4 border border-white/20 mb-24">
             <h3 className="font-bold text-gray-800 mb-3">주의사항 및 보증금 규칙</h3>
             <div className="text-gray-600 text-sm leading-relaxed">
               {showFullDescription ? (
