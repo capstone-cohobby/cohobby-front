@@ -11,7 +11,7 @@ import Step3Photos from '../../../components/post-register/Step3Photos';
 import Step4Price from '../../../components/post-register/Step4Price';
 import { FormData as PostFormData } from '../../../components/post-register/types';
 
-const baseURL = process.env.NEXT_PUBLIC_BASE_URL;
+const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
 const getApiUrl = (endpoint: string) => {
   return `${baseURL}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;

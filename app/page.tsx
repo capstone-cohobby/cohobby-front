@@ -1,17 +1,34 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '../components/Header';
 import ProductCard from '../components/ProductCard';
 import BottomNavigation from '../components/BottomNavigation';
+import { getPostsByCategory, getPostsByHobby, GetPostResponse } from '../lib/api';
 
 export default function Home() {
   const [selectedMainCategory, setSelectedMainCategory] = useState('스포츠');
   const [selectedSubCategory, setSelectedSubCategory] = useState('');
+  const [products, setProducts] = useState<Array<{
+    id: string;
+    title: string;
+    owner: string;
+    verified: boolean;
+    rating: number;
+    reviews: number;
+    location: string;
+    time: string;
+    price: string;
+    image: string;
+    available: boolean;
+    category: string;
+    keywords: string[];
+  }>>([]);
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  const categories = {
+  const categories: Record<string, string[]> = {
     '관람': ['콘서트', '뮤지컬/오페라', '스포츠경기'],
     '스포츠': ['골프', '테니스/배드민턴/탁구', '클라이밍/러닝', '자전거', '축구/야구/농구', '헬스/요가', '보드/스키', '스쿠버 다이빙', '격투기/검도'],
     '악기': ['기타', '피아노', '악보', '현악기', '관악기'],
@@ -20,6 +37,118 @@ export default function Home() {
     '게임': ['보드게임', '닌텐도/Wii', 'VR'],
     '기타': ['반려동물 용품', '마술 용품', '미술 용품']
   };
+
+  // 카테고리 이름 -> ID 매핑 (DB 기준)
+  const categoryNameToId: Record<string, number> = {
+    '스포츠': 1,
+    '악기': 2,
+    '액티비티': 3,
+    '촬영': 4,
+    '게임': 5,
+    '관람': 6,
+    '기타': 7
+  };
+
+  // 취미 이름 -> ID 매핑 (DB 기준)
+  const hobbyNameToId: Record<string, number> = {
+    // 스포츠 (Category ID: 1)
+    '골프': 1,
+    '테니스/배드민턴/탁구': 2,
+    '클라이밍/러닝': 3,
+    '자전거': 4,
+    '축구/야구/농구': 5,
+    '헬스/요가': 6,
+    '보드/스키': 7,
+    '스쿠버 다이빙': 8,
+    '격투기/검도': 9,
+    // 악기 (Category ID: 2)
+    '기타': 10,
+    '피아노': 11,
+    '악보': 12,
+    '현악기': 13,
+    '관악기': 14,
+    // 액티비티 (Category ID: 3)
+    '캠핑': 15,
+    '등산': 16,
+    '낚시': 17,
+    // 촬영 (Category ID: 4)
+    '카메라': 18,
+    '드론': 19,
+    '영상장비': 20,
+    '천체 관측': 21,
+    // 게임 (Category ID: 5)
+    '보드게임': 22,
+    '닌텐도/Wii': 23,
+    'VR': 24,
+    // 관람 (Category ID: 6)
+    '콘서트': 25,
+    '뮤지컬/오페라': 26,
+    '스포츠경기': 27,
+    // 기타 (Category ID: 7)
+    '반려동물 용품': 28,
+    '마술 용품': 29,
+    '미술 용품': 30
+  };
+
+  // 백엔드 응답을 프론트엔드 형식으로 변환
+  const mapPostToProduct = (post: GetPostResponse) => {
+    const today = new Date();
+    const availableFrom = post.availableFrom ? new Date(post.availableFrom) : null;
+    const availableUntil = post.availableUntil ? new Date(post.availableUntil) : null;
+    const isAvailable = availableFrom && availableUntil 
+      ? today >= availableFrom && today <= availableUntil 
+      : true;
+
+    return {
+      id: String(post.postId),
+      title: post.goods || '',
+      owner: post.userNickname || '알 수 없음',
+      verified: false, // TODO: 백엔드에 verified 필드 추가 필요
+      rating: 0, // TODO: Review API에서 평균 평점 계산 필요
+      reviews: 0, // TODO: Review API에서 리뷰 개수 계산 필요
+      location: '', // TODO: User 엔티티에 location 필드 추가 필요
+      time: '보통 1시간 이내', // TODO: 계산 로직 필요
+      price: post.dailyPrice ? `${post.dailyPrice.toLocaleString()}원/일` : '가격 문의',
+      image: post.imageUrl || 'https://via.placeholder.com/300x400',
+      available: isAvailable,
+      category: post.categoryName || '',
+      keywords: [] // TODO: 키워드 필드 추가 필요
+    };
+  };
+
+  // 게시물 조회
+  useEffect(() => {
+    const fetchPosts = async () => {
+      setLoading(true);
+      try {
+        let posts: GetPostResponse[] = [];
+        
+        if (selectedSubCategory) {
+          // 세부 카테고리(취미)가 선택된 경우 hobby API 사용
+          const hobbyId = hobbyNameToId[selectedSubCategory];
+          if (hobbyId) {
+            posts = await getPostsByHobby(hobbyId);
+          }
+        } else if (selectedMainCategory) {
+          // 카테고리만 선택된 경우 category API 사용
+          const categoryId = categoryNameToId[selectedMainCategory];
+          if (categoryId) {
+            posts = await getPostsByCategory(categoryId);
+          }
+        }
+
+        const mappedProducts = posts.map(mapPostToProduct);
+        setProducts(mappedProducts);
+      } catch (error) {
+        console.error('게시물 조회 실패:', error);
+        setProducts([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPosts();
+  }, [selectedMainCategory, selectedSubCategory]);
 
   const allProducts = [
     // 관람
@@ -226,21 +355,12 @@ export default function Home() {
     }
   ];
 
-  const products = {
-    '관람': allProducts.filter(p => p.category === '관람'),
-    '스포츠': allProducts.filter(p => p.category === '스포츠'),
-    '악기': allProducts.filter(p => p.category === '악기'),
-    '액티비티': allProducts.filter(p => p.category === '액티비티'),
-    '촬영': allProducts.filter(p => p.category === '촬영'),
-    '게임': allProducts.filter(p => p.category === '게임'),
-    '기타': allProducts.filter(p => p.category === '기타')
-  };
 
   const handleSearchClick = () => {
     router.push('/search');
   };
 
-  const categoryIcons = {
+  const categoryIcons: Record<string, string> = {
     '관람': 'ri-ticket-line',
     '스포츠': 'ri-basketball-line',
     '악기': 'ri-music-line',
@@ -323,7 +443,7 @@ export default function Home() {
         <div className="px-4 mb-6">
           <h3 className="text-base font-bold text-gray-800 mb-3">{selectedMainCategory} 세부 카테고리</h3>
           <div className="flex flex-wrap gap-2">
-            {categories[selectedMainCategory].map((hobby) => (
+            {(categories[selectedMainCategory] || []).map((hobby: string) => (
               <button
                 key={hobby}
                 onClick={() => setSelectedSubCategory(hobby)}
@@ -344,9 +464,16 @@ export default function Home() {
           <h3 className="text-base font-bold text-gray-800 mb-4">
             {selectedSubCategory ? `${selectedSubCategory} 아이템` : `${selectedMainCategory} 아이템`}
           </h3>
-          {products[selectedMainCategory]?.length > 0 ? (
+          {loading ? (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i className="ri-loader-4-line text-gray-400 text-2xl animate-spin"></i>
+              </div>
+              <p className="text-gray-500 text-sm">로딩 중...</p>
+            </div>
+          ) : products.length > 0 ? (
             <div className="grid grid-cols-2 gap-4">
-              {products[selectedMainCategory].map((product) => (
+              {products.map((product) => (
                 <ProductCard key={product.id} product={product} />
               ))}
             </div>
