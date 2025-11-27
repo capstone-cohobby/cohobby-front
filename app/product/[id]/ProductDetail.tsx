@@ -2,12 +2,35 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Header from '../../../components/Header';
 import BottomNavigation from '../../../components/BottomNavigation';
+import { getPostDetail, GetPostDetailResponse } from '../../../lib/api';
 
 interface ProductDetailProps {
   productId: string;
+}
+
+interface Product {
+  id: string;
+  title: string;
+  owner: string;
+  verified: boolean;
+  rating: number;
+  reviews: number;
+  location: string;
+  time: string;
+  dailyPrice: string;
+  weeklyPrice: string;
+  deposit: string;
+  images: string[];
+  available: boolean;
+  category: string;
+  subCategory: string;
+  purchaseDate: string;
+  defects: string;
+  precautions: string;
+  rentalPeriod: string;
 }
 
 export default function ProductDetail({ productId }: ProductDetailProps) {
@@ -18,17 +41,105 @@ export default function ProductDetail({ productId }: ProductDetailProps) {
   const [selectedStartDate, setSelectedStartDate] = useState('');
   const [selectedEndDate, setSelectedEndDate] = useState('');
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [product, setProduct] = useState<Product | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // 예시 대여 가능 날짜들 (모든 날짜 포함)
-  const availableDates = [
-    '2024-01-13', '2024-01-14', '2024-01-15', '2024-01-16', '2024-01-17', '2024-01-18', '2024-01-19',
-    '2024-01-20', '2024-01-21', '2024-01-22', '2024-01-23', '2024-01-24', '2024-01-25', '2024-01-26',
-    '2024-01-27', '2024-01-28', '2024-01-29', '2024-01-30', '2024-01-31', '2024-02-01', '2024-02-02',
-    '2024-02-03', '2024-02-04', '2024-02-05', '2024-02-06', '2024-02-07', '2024-02-08', '2024-02-09',
-    '2024-02-10', '2024-02-11', '2024-02-12', '2024-02-13', '2024-02-14', '2024-02-15', '2024-02-16',
-    '2024-02-17', '2024-02-18', '2024-02-19', '2024-02-20', '2024-02-21', '2024-02-22', '2024-02-23',
-    '2024-02-24', '2024-02-25', '2024-02-26', '2024-02-27', '2024-02-28', '2024-02-29'
-  ];
+  // 게시물 상세 정보 가져오기
+  useEffect(() => {
+    const fetchProduct = async () => {
+      try {
+        setLoading(true);
+        const postDetail = await getPostDetail(Number(productId));
+        
+        // 대여 가능 날짜 생성
+        const availableDates: string[] = [];
+        if (postDetail.availableFrom && postDetail.availableUntil) {
+          const start = new Date(postDetail.availableFrom);
+          const end = new Date(postDetail.availableUntil);
+          const current = new Date(start);
+          
+          while (current <= end) {
+            availableDates.push(current.toISOString().split('T')[0]);
+            current.setDate(current.getDate() + 1);
+          }
+        }
+
+        // 주간 가격 계산 (일일 가격 * 6일, 7일 대여 시)
+        const weeklyPrice = postDetail.dailyPrice 
+          ? `${(postDetail.dailyPrice * 6).toLocaleString()}원/주`
+          : '가격 문의';
+
+        // 대여 기간 포맷팅
+        const rentalPeriod = postDetail.availableFrom && postDetail.availableUntil
+          ? `${postDetail.availableFrom} ~ ${postDetail.availableUntil}`
+          : '상시 대여 가능';
+
+        // 이미지가 없을 경우 기본 이미지 추가
+        const images = postDetail.images && postDetail.images.length > 0
+          ? postDetail.images
+          : ['https://via.placeholder.com/400x400'];
+
+        // 대여 가능 여부 확인
+        const today = new Date();
+        const isAvailable = postDetail.availableFrom && postDetail.availableUntil
+          ? today >= new Date(postDetail.availableFrom) && today <= new Date(postDetail.availableUntil)
+          : true;
+
+        const mappedProduct: Product = {
+          id: String(postDetail.postId),
+          title: postDetail.goods || '',
+          owner: postDetail.userNickname || '알 수 없음',
+          verified: false, // TODO: 백엔드에 verified 필드 추가 필요
+          rating: 0, // TODO: Review API에서 평균 평점 계산 필요
+          reviews: 0, // TODO: Review API에서 리뷰 개수 계산 필요
+          location: '', // TODO: User 엔티티에 location 필드 추가 필요
+          time: '보통 1시간 이내', // TODO: 계산 로직 필요
+          dailyPrice: postDetail.dailyPrice ? `${postDetail.dailyPrice.toLocaleString()}원/일` : '가격 문의',
+          weeklyPrice: weeklyPrice,
+          deposit: postDetail.deposit ? `${postDetail.deposit.toLocaleString()}원` : '보증금 문의',
+          images: images,
+          available: isAvailable,
+          category: postDetail.categoryName || '',
+          subCategory: postDetail.hobbyName || '',
+          purchaseDate: postDetail.purchasedAt || '',
+          defects: postDetail.defectStatus || '하자 사항 없음',
+          precautions: postDetail.caution || '주의사항 없음',
+          rentalPeriod: rentalPeriod
+        };
+
+        setProduct(mappedProduct);
+      } catch (err) {
+        console.error('게시물 상세 조회 실패:', err);
+        setError('게시물을 불러오는데 실패했습니다.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (productId) {
+      fetchProduct();
+    }
+  }, [productId]);
+
+  // 대여 가능 날짜 목록 (product가 로드된 후 계산)
+  const availableDates: string[] = [];
+  if (product) {
+    const rentalPeriod = product.rentalPeriod;
+    if (rentalPeriod.includes('~')) {
+      const [startStr, endStr] = rentalPeriod.split('~').map(s => s.trim());
+      if (startStr && endStr) {
+        const start = new Date(startStr);
+        const end = new Date(endStr);
+        const current = new Date(start);
+        
+        while (current <= end) {
+          availableDates.push(current.toISOString().split('T')[0]);
+          current.setDate(current.getDate() + 1);
+        }
+      }
+    }
+  }
 
   const handleRentalInquiry = () => {
     setShowDatePicker(true);
@@ -40,335 +151,47 @@ export default function ProductDetail({ productId }: ProductDetailProps) {
     }
   };
 
-  const allProducts = [
-    {
-      id: '1',
-      title: '콘서트 쌍안경',
-      owner: '뮤직러버',
-      verified: true,
-      rating: 4.9,
-      reviews: 15,
-      location: '강남구 역삼동',
-      time: '보통 1시간 이내',
-      dailyPrice: '3,000원/일',
-      weeklyPrice: '18,000원/주',
-      deposit: '30,000원',
-      images: [
-        'https://readdy.ai/api/search-image?query=Professional%20binoculars%20for%20concerts%20and%20theater%20performances%2C%20compact%20black%20opera%20glasses%20on%20clean%20white%20background%2C%20elegant%20design%20for%20cultural%20events&width=400&height=400&seq=binoculars1&orientation=squarish',
-        'https://readdy.ai/api/search-image?query=Close%20up%20view%20of%20concert%20binoculars%20lens%20detail%2C%20professional%20opera%20glasses%20macro%20photography%20on%20clean%20white%20background&width=400&height=400&seq=binoculars2&orientation=squarish',
-        'https://readdy.ai/api/search-image?query=Concert%20binoculars%20side%20view%20showing%20ergonomic%20design%20and%20adjustment%20knobs%20on%20clean%20white%20background%2C%20professional%20photography&width=400&height=400&seq=binoculars3&orientation=squarish'
-      ],
-      available: true,
-      category: '관람',
-      subCategory: '콘서트',
-      purchaseDate: '2023-03-15',
-      defects: '전체적으로 깨끗한 상태입니다. 렌즈에 미세한 먼지가 있을 수 있으나 사용에는 전혀 문제없습니다.',
-      precautions: '렌즈 청소 시 전용 천을 사용해주세요. 충격에 주의하시고, 습기가 많은 곳에 보관하지 마세요. 연체 시 일일 대여료의 50% 추가 요금이 발생합니다.',
-      rentalPeriod: '2024-01-15 ~ 2024-06-30'
-    },
-    {
-      id: '3',
-      title: 'Wilson 골프채 세트',
-      owner: '골프마니아',
-      verified: true,
-      rating: 4.8,
-      reviews: 31,
-      location: '분당구 정자동',
-      time: '보통 2시간 이내',
-      dailyPrice: '25,000원/일',
-      weeklyPrice: '150,000원/주',
-      deposit: '200,000원',
-      images: [
-        'https://readdy.ai/api/search-image?query=Wilson%20golf%20club%20set%20professional%20equipment%20with%20golf%20bag%2C%20complete%20iron%20and%20driver%20set%20on%20clean%20white%20background%2C%20premium%20golf%20gear&width=400&height=400&seq=golf1&orientation=squarish',
-        'https://readdy.ai/api/search-image?query=Close%20up%20of%20Wilson%20golf%20club%20heads%20showing%20iron%20numbers%20and%20brand%20logo%2C%20professional%20golf%20equipment%20photography%20on%20white%20background&width=400&height=400&seq=golf2&orientation=squarish',
-        'https://readdy.ai/api/search-image?query=Wilson%20golf%20bag%20with%20clubs%20arranged%20showing%20full%20set%20contents%2C%20professional%20golf%20equipment%20on%20clean%20white%20background&width=400&height=400&seq=golf3&orientation=squarish'
-      ],
-      available: true,
-      category: '스포츠',
-      subCategory: '골프',
-      purchaseDate: '2023-05-20',
-      defects: '드라이버 헤드에 사용감이 있으나 성능에는 문제없습니다. 골프백 바퀴 부분에 약간의 스크래치가 있습니다.',
-      precautions: '골프채는 충격에 주의해서 다뤄주세요. 라운드 후 깨끗이 청소해서 반납 부탁드립니다. 분실 시 개별 클럽 가격으로 보상해주셔야 합니다.',
-      rentalPeriod: '2024-01-01 ~ 2024-12-31'
-    },
-    {
-      id: '4',
-      title: '전문 클라이밍 장비 세트',
-      owner: '암벽등반가',
-      verified: true,
-      rating: 4.9,
-      reviews: 18,
-      location: '서대문구 연희동',
-      time: '보통 1시간 이내',
-      dailyPrice: '15,000원/일',
-      weeklyPrice: '90,000원/주',
-      deposit: '100,000원',
-      images: [
-        'https://readdy.ai/api/search-image?query=Professional%20rock%20climbing%20equipment%20set%20with%20harness%2C%20carabiners%2C%20and%20ropes%20on%20clean%20white%20background%2C%20safety%20climbing%20gear&width=400&height=400&seq=climbing1&orientation=squarish',
-        'https://readdy.ai/api/search-image?query=Climbing%20harness%20close%20up%20showing%20safety%20buckles%20and%20gear%20loops%2C%20professional%20climbing%20equipment%20on%20white%20background&width=400&height=400&seq=climbing2&orientation=squarish',
-        'https://readdy.ai/api/search-image?query=Climbing%20carabiners%20and%20safety%20equipment%20detail%20shot%2C%20professional%20mountaineering%20gear%20on%20clean%20white%20background&width=400&height=400&seq=climbing3&orientation=squarish'
-      ],
-      available: true,
-      category: '스포츠',
-      subCategory: '클라이밍/러닝',
-      purchaseDate: '2023-08-10',
-      defects: '하네스 패딩 부분에 약간의 사용감이 있습니다. 카라비너는 모두 정상 작동하며 안전검사 완료된 상태입니다.',
-      precautions: '안전장비이므로 사용 전 반드시 점검해주세요. 로프는 날카로운 모서리에 닿지 않도록 주의하세요. 장비 손상 시 전액 보상 부탁드립니다.',
-      rentalPeriod: '2024-03-01 ~ 2024-11-30'
-    },
-    {
-      id: '5',
-      title: 'Yamaha 어쿠스틱 기타',
-      owner: '기타치는사람',
-      verified: true,
-      rating: 4.6,
-      reviews: 27,
-      location: '마포구 상암동',
-      time: '보통 1시간 이내',
-      dailyPrice: '8,000원/일',
-      weeklyPrice: '45,000원/주',
-      deposit: '80,000원',
-      images: [
-        'https://readdy.ai/api/search-image?query=Yamaha%20acoustic%20guitar%20wooden%20musical%20instrument%20on%20clean%20white%20background%2C%20professional%20guitar%20product%20photography%20warm%20wood%20finish&width=400&height=400&seq=guitar1&orientation=squarish',
-        'https://readdy.ai/api/search-image?query=Yamaha%20guitar%20headstock%20and%20tuning%20pegs%20close%20up%2C%20professional%20musical%20instrument%20photography%20on%20white%20background&width=400&height=400&seq=guitar2&orientation=squarish',
-        'https://readdy.ai/api/search-image?query=Acoustic%20guitar%20sound%20hole%20and%20strings%20detail%2C%20Yamaha%20guitar%20close%20up%20photography%20on%20clean%20white%20background&width=400&height=400&seq=guitar3&orientation=squarish'
-      ],
-      available: true,
-      category: '악기',
-      subCategory: '기타',
-      purchaseDate: '2023-02-28',
-      defects: '바디 뒷면에 작은 스크래치가 2-3개 있으나 소리에는 영향 없습니다. 프렛은 깨끗한 상태입니다.',
-      precautions: '습도와 온도 변화에 민감하니 케이스에 보관해주세요. 줄 교체가 필요한 경우 미리 연락 부탁드립니다. 넥 부분 충격 금지입니다.',
-      rentalPeriod: '2024-01-01 ~ 2024-12-31'
-    },
-    {
-      id: '7',
-      title: '4인용 캠핑 텐트',
-      owner: '캠핑러버',
-      verified: true,
-      rating: 4.7,
-      reviews: 25,
-      location: '용산구 이태원동',
-      time: '보통 2시간 이내',
-      dailyPrice: '12,000원/일',
-      weeklyPrice: '70,000원/주',
-      deposit: '60,000원',
-      images: [
-        'https://readdy.ai/api/search-image?query=Four%20person%20camping%20tent%20outdoor%20equipment%20green%20and%20orange%20colors%20on%20clean%20white%20background%2C%20family%20camping%20gear&width=400&height=400&seq=tent1&orientation=squarish',
-        'https://readdy.ai/api/search-image?query=Camping%20tent%20interior%20view%20showing%20spacious%204%20person%20capacity%2C%20outdoor%20equipment%20photography%20on%20white%20background&width=400&height=400&seq=tent2&orientation=squarish',
-        'https://readdy.ai/api/search-image?query=Camping%20tent%20packed%20in%20carrying%20bag%20with%20stakes%20and%20accessories%2C%20outdoor%20gear%20on%20clean%20white%20background&width=400&height=400&seq=tent3&orientation=squarish'
-      ],
-      available: true,
-      category: '액티비티',
-      subCategory: '캠핑',
-      purchaseDate: '2023-04-12',
-      defects: '텐트 바닥에 미세한 구멍이 1개 있으나 방수 테이프로 보수되어 있습니다. 전체적으로 양호한 상태입니다.',
-      precautions: '설치 시 날카로운 돌이나 가지를 제거 후 설치해주세요. 철거 시 완전히 건조 후 보관 부탁드립니다. 화기 근처 설치 금지입니다.',
-      rentalPeriod: '2024-03-15 ~ 2024-10-30'
-    },
-    {
-      id: '9',
-      title: 'Canon EOS R5 미러리스',
-      owner: '김포토',
-      verified: true,
-      rating: 4.8,
-      reviews: 24,
-      location: '강남구 역삼동',
-      time: '보통 1시간 이내',
-      dailyPrice: '25,000원/일',
-      weeklyPrice: '140,000원/주',
-      deposit: '300,000원',
-      images: [
-        'https://readdy.ai/api/search-image?query=Canon%20EOS%20R5%20mirrorless%20camera%20professional%20photography%20equipment%20with%20lens%20on%20clean%20white%20background%2C%20product%20photography%20style%2C%20high%20quality%20DSLR%20camera&width=400&height=400&seq=camera1&orientation=squarish',
-        'https://readdy.ai/api/search-image?query=Canon%20camera%20LCD%20screen%20and%20control%20buttons%20detail%2C%20professional%20camera%20equipment%20close%20up%20on%20white%20background&width=400&height=400&seq=camera2&orientation=squarish',
-        'https://readdy.ai/api/search-image?query=Canon%20EOS%20R5%20camera%20with%20multiple%20lenses%20and%20accessories%2C%20professional%20photography%20equipment%20set%20on%20clean%20white%20background&width=400&height=400&seq=camera3&orientation=squarish'
-      ],
-      available: true,
-      category: '촬영',
-      subCategory: '카메라',
-      purchaseDate: '2023-07-08',
-      defects: '카메라 바디는 완벽한 상태입니다. 렌즈에 미세한 먼지가 있을 수 있으나 촬영에는 영향 없습니다.',
-      precautions: '습기와 충격에 매우 민감합니다. 반드시 케이스에 보관하고 렌즈캡을 씌워주세요. SD카드는 포함되지 않습니다. 배터리는 충전된 상태로 드립니다.',
-      rentalPeriod: '2024-01-01 ~ 2024-12-31'
-    },
-    {
-      id: '11',
-      title: 'Nintendo Switch OLED',
-      owner: '게임러버',
-      verified: true,
-      rating: 4.9,
-      reviews: 18,
-      location: '서초구 서초동',
-      time: '보통 30분 이내',
-      dailyPrice: '10,000원/일',
-      weeklyPrice: '55,000원/주',
-      deposit: '40,000원',
-      images: [
-        'https://readdy.ai/api/search-image?query=Nintendo%20Switch%20OLED%20gaming%20console%20with%20Joy-Con%20controllers%20on%20clean%20white%20background%2C%20modern%20gaming%20device%20product%20photography&width=400&height=400&seq=switch1&orientation=squarish',
-        'https://readdy.ai/api/search-image?query=Nintendo%20Switch%20OLED%20screen%20display%20showing%20game%20interface%2C%20gaming%20console%20close%20up%20on%20white%20background&width=400&height=400&seq=switch2&orientation=squarish',
-        'https://readdy.ai/api/search-image?query=Nintendo%20Switch%20accessories%20and%20Joy-Con%20controllers%20detail%2C%20gaming%20equipment%20on%20clean%20white%20background&width=400&height=400&seq=switch3&orientation=squarish'
-      ],
-      available: true,
-      category: '게임',
-      subCategory: '닌텐도/Wii',
-      purchaseDate: '2023-09-22',
-      defects: '본체와 조이콘 모두 완벽한 상태입니다. 화면에 보호필름이 부착되어 있습니다.',
-      precautions: '조이콘 스틱은 부드럽게 조작해주세요. 물이나 음료수 근처에서 사용 금지입니다. 충전기와 게임 소프트웨어는 별도입니다.',
-      rentalPeriod: '2024-01-10 ~ 2024-12-20'
-    },
-    {
-      id: '13',
-      title: '강아지 캐리어',
-      owner: '펫러버',
-      verified: true,
-      rating: 4.7,
-      reviews: 13,
-      location: '성동구 성수동',
-      time: '보통 1시간 이내',
-      dailyPrice: '5,000원/일',
-      weeklyPrice: '28,000원/주',
-      deposit: '25,000원',
-      images: [
-        'https://readdy.ai/api/search-image?query=Pet%20carrier%20bag%20for%20small%20dogs%20comfortable%20travel%20case%20with%20mesh%20windows%20on%20clean%20white%20background%2C%20pet%20transportation%20equipment&width=400&height=400&seq=carrier1&orientation=squarish',
-        'https://readdy.ai/api/search-image?query=Pet%20carrier%20interior%20view%20showing%20comfortable%20padding%20and%20ventilation%2C%20dog%20travel%20bag%20on%20white%20background&width=400&height=400&seq=carrier2&orientation=squarish',
-        'https://readdy.ai/api/search-image?query=Pet%20carrier%20side%20view%20showing%20mesh%20windows%20and%20carrying%20handles&width=400&height=400&seq=carrier3&orientation=squarish'
-      ],
-      available: true,
-      category: '기타',
-      subCategory: '반려동물 용품',
-      purchaseDate: '2023-06-18',
-      defects: '캐리어 바닥 패딩에 약간의 털이 묻어 있을 수 있습니다. 전체적으로 깨끗하게 관리되고 있습니다.',
-      precautions: '사용 전후 소독 및 청소 부탁드립니다. 10kg 이하 소형견만 사용 가능합니다. 장거리 이동 시 중간중간 환기시켜주세요.',
-      rentalPeriod: '2024-02-01 ~ 2024-11-30'
-    },
-    {
-      id: '14',
-      title: '테니스 라켓 세트',
-      owner: '테니스왕',
-      verified: true,
-      rating: 4.7,
-      reviews: 22,
-      location: '강남구 청담동',
-      time: '보통 1시간 이내',
-      dailyPrice: '8,000원/일',
-      weeklyPrice: '45,000원/주',
-      deposit: '50,000원',
-      images: [
-        'https://readdy.ai/api/search-image?query=Professional%20tennis%20racket%20set%20with%20tennis%20balls%20on%20clean%20white%20background%2C%20sports%20equipment%20for%20tennis%20game&width=400&height=400&seq=tennis1&orientation=squarish',
-        'https://readdy.ai/api/search-image?query=Tennis%20racket%20head%20and%20string%20pattern%20close%20up%2C%20professional%20sports%20equipment%20photography%20on%20white%20background&width=400&height=400&seq=tennis2&orientation=squarish',
-        'https://readdy.ai/api/search-image?query=%D0%A2%D0%B5%D0%BD%D0%B8%D1%81%D0%BD%D1%8B%D0%B9%20%D0%BA%D0%BE%D0%BC%D0%BF%D0%BB%D0%B5%D0%BA%D1%82%20%D0%BE%D0%B1%D0%BE%D1%80%D1%83%D0%B4%D0%BE%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F%20%D1%81%20%D0%BF%D0%BE%D0%BA%D1%80%D1%8B%D1%82%D0%B8%D0%B5%D0%BC%20%D1%80%D0%B0%D0%BA%D0%B5%D1%82%D0%BA%D0%B8%20%D0%B8%20%D0%B0%D0%BA%D1%81%D0%B5%D1%81%D1%81%D1%83%D0%B0%D1%80%D0%B0%D0%BC%D0%B8%2C%20%D1%81%D0%BF%D0%BE%D1%80%D1%82%D0%B8%D0%B2%D0%BD%D1%8B%D0%B9%20%D0%B8%D0%BD%D0%B2%D0%B5%D0%BD%D1%82%D0%B0%D1%80%D1%8C%20%D0%BD%D0%B0%20%D1%87%D0%B8%D1%81%D1%82%D0%BE%D0%BC%20%D0%B1%D0%B5%D0%BB%D0%BE%D0%BC%20%D1%84%D0%BE%D0%BD%D0%B5&width=400&height=400&seq=tennis3&orientation=squarish'
-      ],
-      available: true,
-      category: '스포츠',
-      subCategory: '테니스/배드민턴/탁구',
-      purchaseDate: '2023-03-25',
-      defects: '라켓 프레임은 완벽한 상태이고, 스트링 장력도 적절합니다. 그립 테이프만 약간 사용감이 있습니다.',
-      precautions: '라켓은 충격에 주의해서 사용해주세요. 사용 후 스트링에 묻은 먼지를 제거해주시면 감사하겠습니다.',
-      rentalPeriod: '2024-03-01 ~ 2024-10-31'
-    },
-    {
-      id: '15',
-      title: '전자 키보드 피아노',
-      owner: '피아노선생님',
-      verified: true,
-      rating: 4.8,
-      reviews: 16,
-      location: '서초구 반포동',
-      time: '보통 2시간 이내',
-      dailyPrice: '12,000원/일',
-      weeklyPrice: '65,000원/주',
-      deposit: '90,000원',
-      images: [
-        'https://readdy.ai/api/search-image?query=Digital%20keyboard%20piano%20electronic%20musical%20instrument%20with%20keys%20on%20clean%20white%20background%2C%20modern%20music%20equipment&width=400&height=400&seq=keyboard1&orientation=squarish',
-        'https://readdy.ai/api/search-image?query=Digital%20piano%20keys%20close%20up%20showing%20full%2088%20key%20layout%2C%20electronic%20keyboard%20musical%20instrument%20on%20white%20background&width=400&height=400&seq=keyboard2&orientation=squarish',
-        'https://readdy.ai/api/search-image?query=Electronic%20keyboard%20control%20panel%20and%20display%20screen%2C%20digital%20piano%20interface%20on%20clean%20white%20background&width=400&height=400&seq=keyboard3&orientation=squarish'
-      ],
-      available: true,
-      category: '악기',
-      subCategory: '피아노',
-      purchaseDate: '2023-01-12',
-      defects: '모든 건반이 정상 작동하며 음색도 깨끗합니다. 스탠드에 약간의 사용감이 있습니다.',
-      precautions: '전원 연결 시 주의하시고, 음량 조절에 신경 써주세요. 이동 시 키보드 덮개를 씌워 먼지를 방지해주세요.',
-      rentalPeriod: '2024-01-15 ~ 2024-12-15'
-    },
-    {
-      id: '16',
-      title: '등산 배낭 60L',
-      owner: '산악인',
-      verified: true,
-      rating: 4.6,
-      reviews: 19,
-      location: '노원구 상계동',
-      time: '보통 1시간 이내',
-      dailyPrice: '6,000원/일',
-      weeklyPrice: '35,000원/주',
-      deposit: '40,000원',
-      images: [
-        'https://readdy.ai/api/search-image?query=Large%20hiking%20backpack%2060L%20outdoor%20camping%20equipment%20with%20straps%20on%20clean%20white%20background%2C%20mountain%20climbing%20gear&width=400&height=400&seq=backpack1& orientation=squarish',
-        'https://readdy.ai/api/search-image?query=Hiking%20backpack%20side%20view%20showing%20pockets%20and%20attachment%20points%2C%20outdoor%20equipment%20on%20white%20background&width=400&height=400&seq=backpack2&orientation=squarish',
-        'https://readdy.ai/api/search-image?query=Hiking%20backpack%20shoulder%20straps%20and%20waist%20belt%20detail%2C%20mountain%20climbing%20equipment%20on%20clean%20white%20background&width=400&height=400&seq=backpack3&orientation=squarish'
-      ],
-      available: true,
-      category: '액티비티',
-      subCategory: '등산',
-      purchaseDate: '2023-05-03',
-      defects: '배낭 바닥 부분에 약간의 오염이 있으나 기능에는 문제없습니다. 지퍼는 모두 정상 작동합니다.',
-      precautions: '무게 분산을 위해 적절히 짐을 배치해주세요. 날카로운 물건은 별도 포장 후 넣어주시고, 사용 후 이물질 제거 부탁드립니다.',
-      rentalPeriod: '2024-03-01 ~ 2024-11-30'
-    },
-    {
-      id: '17',
-      title: 'DJI 드론 Mini 3',
-      owner: '드론파일럿',
-      verified: true,
-      rating: 4.9,
-      reviews: 21,
-      location: '송파구 잠실동',
-      time: '보통 1시간 이내',
-      dailyPrice: '18,000원/일',
-      weeklyPrice: '100,000원/주',
-      deposit: '150,000원',
-      images: [
-        'https://readdy.ai/api/search-image?query=DJI%20Mini%203%20drone%20quadcopter%20with%20controller%20on%20clean%20white%20background%2C%20professional%20aerial%20photography%20equipment&width=400&height=400&seq=drone1&orientation=squarish',
-        'https://readdy.ai/api/search-image?query=DJI%20Mini%203%20drone%20close%20up%20showing%20camera%20and%20gimbal%20detail%2C%20professional%20drone%20equipment%20on%20white%20background&width=400&height=400&seq=drone2&orientation=squarish',
-        'https://readdy.ai/api/search-image?query=DJI%20drone%20controller%20and%20accessories%20set%2C%20aerial%20photography%20equipment%20on%20clean%20white%20background&width=400&height=400&seq=drone3&orientation=squarish'
-      ],
-      available: true,
-      category: '촬영',
-      subCategory: '드론',
-      purchaseDate: '2023-08-30',
-      defects: '드론과 컨트롤러 모두 완벽한 상태입니다. 짐벌 카메라도 정상 작동하며 화질이 선명합니다.',
-      precautions: '비행 전 반드시 항공안전법을 확인하시고, 배터리 잔량을 체크해주세요. 강풍이나 비 오는 날 사용 금지입니다. 추락 시 전액 보상 부탁드립니다.',
-      rentalPeriod: '2024-01-01 ~ 2024-12-31'
-    },
-    {
-      id: '18',
-      title: 'PlayStation 5',
-      owner: '콘솔게이머',
-      verified: true,
-      rating: 4.8,
-      reviews: 26,
-      location: '마포구 홍대동',
-      time: '보통 1시간 이내',
-      dailyPrice: '15,000원/일',
-      weeklyPrice: '85,000원/주',
-      deposit: '80,000원',
-      images: [
-        'https://readdy.ai/api/search-image?query=PlayStation%205%20console%20with%20controller%20modern%20white%20gaming%20system%20on%20clean%20white%20background%2C%20next%20generation%20gaming%20device&width=400&height=400&seq=ps5_1&orientation=squarish',
-        'https://readdy.ai/api/search-image?query=PlayStation%205%20DualSense%20controller%20close%20up%20showing%20buttons%20and%20touchpad%2C%20gaming%20controller%20on%20white%20background&width=400&height=400&seq=ps5_2&orientation=squarish',
-        'https://readdy.ai/api/search-image?query=PlayStation%205%20console%20side%20view%20showing%20ports%20and%20ventilation%2C%20gaming%20system%20on%20clean%20white%20background&width=400&height=400&seq=ps5_3&orientation=squarish'
-      ],
-      available: true,
-      category: '게임',
-      subCategory: '닌텐도/Wii',
-      purchaseDate: '2023-11-15',
-      defects: '본체와 컨트롤러 모두 새것 같은 상태입니다. 패키지 박스와 모든 구성품이 포함됩니다.',
-      precautions: '환기가 잘 되는 곳에 설치해주세요. 본체 위에 물건을 올리지 마시고, 게임 소프트웨어는 별도 대여입니다.',
-      rentalPeriod: '2024-02-01 ~ 2024-12-31'
-    }
-  ];
+  // 로딩 중
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-green-50">
+        <Header />
+        <div className="pt-20 pb-24 flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <i className="ri-loader-4-line text-gray-400 text-2xl animate-spin"></i>
+            </div>
+            <p className="text-gray-500 text-sm">로딩 중...</p>
+          </div>
+        </div>
+        <BottomNavigation />
+      </div>
+    );
+  }
 
-  const product = allProducts.find(p => p.id === productId);
+  // 에러 발생
+  if (error || !product) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-green-50">
+        <Header />
+        <div className="pt-20 pb-24 flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <i className="ri-error-warning-line text-gray-400 text-2xl"></i>
+            </div>
+            <p className="text-gray-500 text-sm">{error || '게시물을 찾을 수 없습니다.'}</p>
+            <button
+              onClick={() => router.back()}
+              className="mt-4 px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
+            >
+              돌아가기
+            </button>
+          </div>
+        </div>
+        <BottomNavigation />
+      </div>
+    );
+  }
 
   // 달력 관련 함수들
   const getDaysInMonth = (date: Date) => {
