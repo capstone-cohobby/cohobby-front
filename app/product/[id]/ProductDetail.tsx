@@ -155,6 +155,10 @@ export default function ProductDetail({ productId }: ProductDetailProps) {
       // 채팅방 생성
       const room = await createChatRoom(Number(product.id));
       
+      // 채팅방 생성 성공 메시지 표시 및 모달 닫기
+      alert('채팅방이 생성되었습니다!');
+      setShowDatePicker(false);
+      
       // 날짜 포맷팅 (YYYY-MM-DD -> YYYY년 MM월 DD일)
       const formatDateForMessage = (dateString: string) => {
         const date = new Date(dateString);
