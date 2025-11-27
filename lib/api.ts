@@ -124,6 +124,26 @@ export async function updateRentDates(roomId: number, startDate: string, endDate
   return response.result;
 }
 
+// 채팅방 생성
+export async function createChatRoom(postId: number) {
+  const response = await apiFetch<{
+    isSuccess: boolean;
+    code: string;
+    message: string;
+    result: {
+      id: number;
+      postId: number;
+      ownerId: number;
+      borrowerId: number;
+      name: string;
+    };
+  }>('/chatting/room', {
+    method: 'POST',
+    body: JSON.stringify({ postId })
+  });
+  return response.result;
+}
+
 // 게시물 조회 응답 타입
 export interface GetPostResponse {
   postId: number;

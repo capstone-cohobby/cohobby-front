@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import Header from '../../../components/Header';
 import BottomNavigation from '../../../components/BottomNavigation';
-import { getPostDetail, GetPostDetailResponse } from '../../../lib/api';
+import { getPostDetail, GetPostDetailResponse, createChatRoom } from '../../../lib/api';
+import { connectWebSocket, getStompClient } from '../../../lib/websocket';
 
 interface ProductDetailProps {
   productId: string;
@@ -145,9 +146,80 @@ export default function ProductDetail({ productId }: ProductDetailProps) {
     setShowDatePicker(true);
   };
 
-  const handleContinueToChat = () => {
-    if (selectedStartDate && selectedEndDate) {
-      router.push('/chat/1');
+  const handleContinueToChat = async () => {
+    if (!selectedStartDate || !selectedEndDate || !product) {
+      return;
+    }
+
+    try {
+      // 채팅방 생성
+      const room = await createChatRoom(Number(product.id));
+      
+      // 날짜 포맷팅 (YYYY-MM-DD -> YYYY년 MM월 DD일)
+      const formatDateForMessage = (dateString: string) => {
+        const date = new Date(dateString);
+        const year = date.getFullYear();
+        const month = date.getMonth() + 1;
+        const day = date.getDate();
+        return `${year}년 ${month}월 ${day}일`;
+      };
+
+      const startDateFormatted = formatDateForMessage(selectedStartDate);
+      const endDateFormatted = formatDateForMessage(selectedEndDate);
+
+      // 웹소켓 연결 및 메시지 전송
+      const sendMessageViaWebSocket = () => {
+        return new Promise<void>((resolve, reject) => {
+          const client = getStompClient();
+          
+          // 이미 연결되어 있으면 바로 전송
+          if (client && client.connected) {
+            const message = {
+              roomId: room.id,
+              text: `${startDateFormatted}부터 ${endDateFormatted}까지 대여를 요청했어요`
+            };
+            
+            client.publish({
+              destination: '/pub/chatting/send',
+              body: JSON.stringify(message)
+            });
+            resolve();
+            return;
+          }
+
+          // 연결되어 있지 않으면 연결 후 전송
+          connectWebSocket(
+            () => {
+              const connectedClient = getStompClient();
+              if (connectedClient && connectedClient.connected) {
+                const message = {
+                  roomId: room.id,
+                  text: `${startDateFormatted}부터 ${endDateFormatted}까지 대여를 요청했어요`
+                };
+                
+                connectedClient.publish({
+                  destination: '/pub/chatting/send',
+                  body: JSON.stringify(message)
+                });
+                resolve();
+              } else {
+                reject(new Error('WebSocket 연결 실패'));
+              }
+            },
+            (error) => {
+              reject(error);
+            }
+          );
+        });
+      };
+
+      await sendMessageViaWebSocket();
+
+      // 채팅방으로 이동
+      router.push(`/chat/${room.id}`);
+    } catch (error) {
+      console.error('채팅방 생성 또는 메시지 전송 실패:', error);
+      alert('채팅방 생성에 실패했습니다. 다시 시도해주세요.');
     }
   };
 
@@ -490,8 +562,8 @@ export default function ProductDetail({ productId }: ProductDetailProps) {
 
       {/* 날짜 선택 팝업 */}
       {showDatePicker && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
-          <div className="bg-white rounded-t-2xl p-6 max-w-md w-full max-h-[65vh] overflow-y-auto mb-20">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full max-h-[80vh] overflow-y-auto mx-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-bold text-gray-800">대여 날짜 선택</h3>
               <button
