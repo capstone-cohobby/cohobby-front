@@ -27,6 +27,7 @@ export default function NewPostPage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [hobbyId, setHobbyId] = useState<number | null>(null);
   const [postId, setPostId] = useState<number | null>(null);
+  const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   const [formData, setFormData] = useState<PostFormData>({
     goods: '',
     category: '스포츠',
@@ -258,7 +259,7 @@ export default function NewPostPage() {
     }
   };
 
-  // Step 3: 사진 등록 (임시 패스)
+  // Step 3: 사진 등록 (S3 업로드)
   const handleStep3Next = async () => {
     const targetPostId = postId || Number(localStorage.getItem('tempPostId'));
     if (!targetPostId) {
@@ -266,13 +267,29 @@ export default function NewPostPage() {
       return;
     }
 
-    if (formData.photos.length === 0) {
+    if (photoFiles.length === 0) {
       alert('최소 1장의 사진을 등록해주세요.');
       return;
     }
 
-    console.log("🚧 사진 등록 API 건너뛰고 4단계로 이동");
-    setCurrentStep(4);
+    const accessToken = localStorage.getItem('accessToken');
+    if (!accessToken) {
+      alert('로그인이 필요합니다.');
+      router.push('/login');
+      return;
+    }
+
+    try {
+      // S3 이미지 업로드 API 호출
+      const { uploadPostImages } = await import('../../../lib/api');
+      const result = await uploadPostImages(targetPostId, photoFiles);
+      
+      console.log('✅ 이미지 업로드 완료:', result);
+      setCurrentStep(4);
+    } catch (error: any) {
+      console.error('Image upload error:', error);
+      alert('이미지 업로드 중 오류가 발생했어요: ' + (error?.message ?? '알 수 없는 오류'));
+    }
   };
 
   // Step 4: 가격 설정 (최종 등록)
@@ -370,6 +387,7 @@ export default function NewPostPage() {
               onPhotoRemove={handlePhotoRemove}
               onNext={handleStep3Next}
               onPrevious={() => setCurrentStep(2)}
+              onPhotoFilesChange={(files) => setPhotoFiles(files)}
             />
           )}
           {currentStep === 4 && (

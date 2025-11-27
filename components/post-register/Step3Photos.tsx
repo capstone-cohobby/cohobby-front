@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useRef, useEffect } from 'react';
 import { FormData } from './types';
 
 interface Step3PhotosProps {
@@ -9,6 +10,7 @@ interface Step3PhotosProps {
   onPhotoRemove: (index: number) => void;
   onNext: () => void;
   onPrevious: () => void;
+  onPhotoFilesChange?: (files: File[]) => void;
 }
 
 export default function Step3Photos({ 
@@ -16,8 +18,77 @@ export default function Step3Photos({
   onPhotoAdd, 
   onPhotoRemove, 
   onNext, 
-  onPrevious 
+  onPrevious,
+  onPhotoFilesChange
 }: Step3PhotosProps) {
+  const [photoFiles, setPhotoFiles] = useState<File[]>([]);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 파일 선택 시 미리보기 URL 생성
+  useEffect(() => {
+    const urls = photoFiles.map(file => URL.createObjectURL(file));
+    setPreviewUrls(urls);
+
+    // cleanup: 메모리 누수 방지
+    return () => {
+      urls.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, [photoFiles]);
+
+  // 부모 컴포넌트에 파일 목록 전달
+  useEffect(() => {
+    if (onPhotoFilesChange) {
+      onPhotoFilesChange(photoFiles);
+    }
+  }, [photoFiles, onPhotoFilesChange]);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const imageFiles = files.filter(file => file.type.startsWith('image/'));
+    
+    if (photoFiles.length + imageFiles.length > 5) {
+      alert('최대 5장까지만 업로드할 수 있습니다.');
+      return;
+    }
+
+    setPhotoFiles(prev => [...prev, ...imageFiles]);
+    
+    // formData.photos도 업데이트 (미리보기 URL)
+    const newUrls = imageFiles.map(file => URL.createObjectURL(file));
+    onInputChange('photos', [...formData.photos, ...newUrls]);
+
+    // input 초기화 (같은 파일 다시 선택 가능하도록)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handlePhotoRemove = (index: number) => {
+    // 미리보기 URL 정리
+    if (previewUrls[index]) {
+      URL.revokeObjectURL(previewUrls[index]);
+    }
+
+    // 파일 목록에서 제거
+    const newFiles = photoFiles.filter((_, i) => i !== index);
+    setPhotoFiles(newFiles);
+
+    // formData.photos에서도 제거
+    const newPhotos = formData.photos.filter((_, i) => i !== index);
+    onInputChange('photos', newPhotos);
+    
+    // 기존 핸들러도 호출
+    onPhotoRemove(index);
+  };
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  // 미리보기용 URL (파일이 있으면 파일에서, 없으면 기존 URL)
+  const displayPhotos = previewUrls.length > 0 ? previewUrls : formData.photos;
+
   return (
     <div className="space-y-6">
       <div className="text-center mb-8">
@@ -25,8 +96,17 @@ export default function Step3Photos({
         <p className="text-gray-500 text-sm">물품의 전체 모습과 하자 부분을 확인할 수 있도록 여러 장의 사진을 올려주세요. (최대 5장)</p>
       </div>
 
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={handleFileSelect}
+        className="hidden"
+      />
+
       <div className="grid grid-cols-2 gap-3">
-        {formData.photos.map((photo, index) => (
+        {displayPhotos.map((photo, index) => (
           <div key={index} className="relative aspect-square">
             <img
               src={photo}
@@ -34,7 +114,7 @@ export default function Step3Photos({
               className="w-full h-full object-cover rounded-2xl object-top"
             />
             <button
-              onClick={() => onPhotoRemove(index)}
+              onClick={() => handlePhotoRemove(index)}
               className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center cursor-pointer"
             >
               <i className="ri-close-line text-sm"></i>
@@ -47,9 +127,9 @@ export default function Step3Photos({
           </div>
         ))}
 
-        {formData.photos.length < 5 && (
+        {displayPhotos.length < 5 && (
           <button
-            onClick={onPhotoAdd}
+            onClick={handleUploadClick}
             className="aspect-square border-2 border-dashed border-gray-300 rounded-2xl flex flex-col items-center justify-center text-gray-400 hover:border-purple-400 hover:text-purple-400 transition-colors cursor-pointer"
           >
             <div className="w-8 h-8 flex items-center justify-center">
@@ -85,9 +165,9 @@ export default function Step3Photos({
         </button>
         <button
           onClick={onNext}
-          disabled={formData.photos.length === 0}
+          disabled={displayPhotos.length === 0}
           className={`flex-1 py-4 rounded-2xl font-medium transition-all whitespace-nowrap cursor-pointer ${
-            formData.photos.length > 0
+            displayPhotos.length > 0
               ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white hover:from-purple-600 hover:to-purple-700'
               : 'bg-gray-200 text-gray-400 cursor-not-allowed'
           }`}
