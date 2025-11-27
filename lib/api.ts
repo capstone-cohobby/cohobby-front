@@ -124,3 +124,51 @@ export async function updateRentDates(roomId: number, startDate: string, endDate
   return response.result;
 }
 
+// 게시물 조회 응답 타입
+export interface GetPostResponse {
+  postId: number;
+  goods: string;
+  dailyPrice: number | null;
+  deposit: number | null;
+  imageUrl: string | null;
+  availableFrom: string | null;
+  availableUntil: string | null;
+  hobbyName: string | null;
+  categoryName: string | null;
+  userId: number | null;
+  userNickname: string | null;
+}
+
+// 게시물 검색
+export async function getPostsBySearch(query?: string) {
+  const response = await apiFetch<{
+    isSuccess: boolean;
+    code: string;
+    message: string;
+    result: GetPostResponse[];
+  }>(`/posts/search${query ? `?query=${encodeURIComponent(query)}` : ''}`);
+  return response.result;
+}
+
+// 카테고리로 게시물 조회
+export async function getPostsByCategory(categoryId: number) {
+  const response = await apiFetch<{
+    isSuccess: boolean;
+    code: string;
+    message: string;
+    result: GetPostResponse[];
+  }>(`/posts/category/${categoryId}`);
+  return response.result;
+}
+
+// 취미로 게시물 조회
+export async function getPostsByHobby(hobbyId: number) {
+  const response = await apiFetch<{
+    isSuccess: boolean;
+    code: string;
+    message: string;
+    result: GetPostResponse[];
+  }>(`/posts/hobby/${hobbyId}`);
+  return response.result;
+}
+
