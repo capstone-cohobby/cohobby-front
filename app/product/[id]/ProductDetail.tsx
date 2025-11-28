@@ -178,6 +178,9 @@ export default function ProductDetail({ productId }: ProductDetailProps) {
 
       const startDateFormatted = formatDateForMessage(selectedStartDate);
       const endDateFormatted = formatDateForMessage(selectedEndDate);
+      
+      // 게시물명 가져오기
+      const postTitle = product.title || postDetail.goods || '게시물';
 
       // 웹소켓 연결 및 메시지 전송
       const sendMessageViaWebSocket = () => {
@@ -188,7 +191,7 @@ export default function ProductDetail({ productId }: ProductDetailProps) {
           if (client && client.connected) {
             const message = {
               roomId: room.id,
-              text: `${startDateFormatted}부터 ${endDateFormatted}까지 대여를 요청했어요`
+              text: `${postTitle}에 대해 ${startDateFormatted}부터 ${endDateFormatted}까지 대여를 요청했어요!`
             };
             
             client.publish({
@@ -206,7 +209,7 @@ export default function ProductDetail({ productId }: ProductDetailProps) {
               if (connectedClient && connectedClient.connected) {
                 const message = {
                   roomId: room.id,
-                  text: `${startDateFormatted}부터 ${endDateFormatted}까지 대여를 요청했어요`
+                  text: `${postTitle}에 대해 ${startDateFormatted}부터 ${endDateFormatted}까지 대여를 요청했어요!`
                 };
                 
                 connectedClient.publish({
