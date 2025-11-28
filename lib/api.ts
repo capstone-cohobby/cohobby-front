@@ -355,6 +355,18 @@ export async function getPostDetail(postId: number) {
   return response.result;
 }
 
+// 게시물 삭제
+export async function deletePost(postId: number) {
+  const response = await apiFetch<{
+    isSuccess: boolean;
+    code: string;
+    message: string;
+  }>(`/posts/${postId}`, {
+    method: 'DELETE'
+  });
+  return response;
+}
+
 // 게시물 이미지 업로드
 export async function uploadPostImages(postId: number, images: File[]) {
   const formData = new FormData();

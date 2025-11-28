@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import Header from '../../../components/Header';
 import BottomNavigation from '../../../components/BottomNavigation';
-import { getPostDetail, GetPostDetailResponse, createChatRoom } from '../../../lib/api';
+import { getPostDetail, GetPostDetailResponse, createChatRoom, getCurrentUser } from '../../../lib/api';
 import { connectWebSocket, getStompClient } from '../../../lib/websocket';
 
 interface ProductDetailProps {
@@ -46,6 +46,21 @@ export default function ProductDetail({ productId }: ProductDetailProps) {
   const [postDetail, setPostDetail] = useState<GetPostDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+
+  // 현재 사용자 정보 가져오기
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        const user = await getCurrentUser();
+        setCurrentUserId(user.id);
+      } catch (error) {
+        // 로그인하지 않은 경우
+        setCurrentUserId(null);
+      }
+    };
+    fetchCurrentUser();
+  }, []);
 
   // 게시물 상세 정보 가져오기
   useEffect(() => {
@@ -601,15 +616,17 @@ export default function ProductDetail({ productId }: ProductDetailProps) {
         </div>
       </div>
 
-      {/* 대여하기 버튼 - 고정 위치 */}
-      <div className="fixed bottom-24 left-0 right-0 px-4 bg-white/90 backdrop-blur-md py-4 border-t border-white/20 shadow-lg z-40">
-        <button 
-          onClick={handleRentalInquiry}
-          className="w-full py-4 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-2xl font-bold text-lg hover:from-purple-600 hover:to-purple-700 transition-all duration-300 shadow-lg cursor-pointer whitespace-nowrap"
-        >
-          대여하기
-        </button>
-      </div>
+      {/* 대여하기 버튼 - 고정 위치 (자신의 게시물이 아닐 때만 표시) */}
+      {currentUserId === null || !postDetail || postDetail.userId === null || currentUserId !== postDetail.userId ? (
+        <div className="fixed bottom-24 left-0 right-0 px-4 bg-white/90 backdrop-blur-md py-4 border-t border-white/20 shadow-lg z-40">
+          <button 
+            onClick={handleRentalInquiry}
+            className="w-full py-4 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-2xl font-bold text-lg hover:from-purple-600 hover:to-purple-700 transition-all duration-300 shadow-lg cursor-pointer whitespace-nowrap"
+          >
+            대여하기
+          </button>
+        </div>
+      ) : null}
 
       {/* 날짜 선택 팝업 */}
       {showDatePicker && (
