@@ -124,6 +124,42 @@ export async function updateRentDates(roomId: number, startDate: string, endDate
   return response.result;
 }
 
+// Rent 일일 대여료 업데이트
+export async function updateRentDailyPrice(roomId: number, dailyPrice: number) {
+  const response = await apiFetch<{
+    isSuccess: boolean;
+    code: string;
+    message: string;
+    result: {
+      rentId: number;
+    };
+  }>(`/rents/${roomId}/detail`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      dailyPrice: dailyPrice
+    })
+  });
+  return response.result;
+}
+
+// Rent 대여 규칙 업데이트
+export async function updateRentRule(roomId: number, rule: string) {
+  const response = await apiFetch<{
+    isSuccess: boolean;
+    code: string;
+    message: string;
+    result: {
+      rentId: number;
+    };
+  }>(`/rents/${roomId}/detail`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      rule: rule
+    })
+  });
+  return response.result;
+}
+
 // Rent 정보 가져오기 (roomId로)
 export async function getRentByRoomId(roomId: number) {
   const response = await apiFetch<{
@@ -136,7 +172,8 @@ export async function getRentByRoomId(roomId: number) {
       duedate: string | null;
       rule: string | null;
       status: string;
-      totalPrice: number;
+      totalPrice: number | null;
+      dailyPrice: number | null;
       currency: string;
       postId: number;
       postGoods: string;
@@ -151,6 +188,7 @@ export async function getRentByRoomId(roomId: number) {
     rule: response.result.rule,
     status: response.result.status,
     totalPrice: response.result.totalPrice || 0,
+    dailyPrice: response.result.dailyPrice || 0,
     currency: response.result.currency || 'KRW',
     post: {
       id: response.result.postId,
@@ -203,23 +241,40 @@ export async function confirmPayment(orderId: string, paymentKey: string, amount
 }
 
 // 채팅방 생성
-export async function createChatRoom(postId: number) {
-  const response = await apiFetch<{
-    isSuccess: boolean;
-    code: string;
-    message: string;
-    result: {
-      id: number;
-      postId: number;
-      ownerId: number;
-      borrowerId: number;
-      name: string;
-    };
-  }>('/chatting/room', {
+export async function createChatRoom(
+  postId: number,
+  options?: {
+    startDate?: string;
+    endDate?: string;
+    totalPrice?: number;
+  }
+) {
+  const requestBody: any = { postId };
+  if (options?.startDate) {
+    requestBody.startDate = options.startDate;
+  }
+  if (options?.endDate) {
+    requestBody.endDate = options.endDate;
+  }
+  if (options?.totalPrice !== undefined) {
+    requestBody.totalPrice = options.totalPrice;
+  }
+
+  const response = await apiFetch<any>('/chatting/room', {
     method: 'POST',
-    body: JSON.stringify({ postId })
+    body: JSON.stringify(requestBody)
   });
-  return response.result;
+  
+  // BaseResponse로 감싸져 있으면 result, 아니면 직접 응답
+  if (response && typeof response === 'object') {
+    if ('result' in response && response.result) {
+      return response.result;
+    } else if ('id' in response) {
+      return response;
+    }
+  }
+  
+  throw new Error('Invalid response format from createChatRoom');
 }
 
 // 게시물 조회 응답 타입
