@@ -367,6 +367,40 @@ export async function deletePost(postId: number) {
   return response;
 }
 
+// 내 대여 내역 조회
+export interface MyRentalHistoryResponse {
+  id: number;
+  postId: number;
+  postGoods: string;
+  postImageUrl: string | null;
+  ownerNickname: string | null;
+  startAt: string | null;
+  duedate: string | null;
+  totalPrice: number | null;
+  status: string;
+}
+
+export async function getMyRentalHistory() {
+  const response = await apiFetch<{
+    isSuccess: boolean;
+    code: string;
+    message: string;
+    result: MyRentalHistoryResponse[];
+  }>('/rents/my-rentals');
+  return response.result;
+}
+
+// 내 등록 상품 조회
+export async function getMyPosts() {
+  const response = await apiFetch<{
+    isSuccess: boolean;
+    code: string;
+    message: string;
+    result: GetPostResponse[];
+  }>('/posts/my-posts');
+  return response.result;
+}
+
 // 게시물 이미지 업로드
 export async function uploadPostImages(postId: number, images: File[]) {
   const formData = new FormData();
