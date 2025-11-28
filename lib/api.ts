@@ -260,22 +260,21 @@ export async function createChatRoom(
     requestBody.totalPrice = options.totalPrice;
   }
 
-  const response = await apiFetch<{
-    isSuccess: boolean;
-    code: string;
-    message: string;
-    result: {
-      id: number;
-      postId: number;
-      ownerId: number;
-      borrowerId: number;
-      name: string;
-    };
-  }>('/chatting/room', {
+  const response = await apiFetch<any>('/chatting/room', {
     method: 'POST',
     body: JSON.stringify(requestBody)
   });
-  return response.result;
+  
+  // BaseResponse로 감싸져 있으면 result, 아니면 직접 응답
+  if (response && typeof response === 'object') {
+    if ('result' in response && response.result) {
+      return response.result;
+    } else if ('id' in response) {
+      return response;
+    }
+  }
+  
+  throw new Error('Invalid response format from createChatRoom');
 }
 
 // 게시물 조회 응답 타입

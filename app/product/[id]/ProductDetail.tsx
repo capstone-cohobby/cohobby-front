@@ -163,6 +163,15 @@ export default function ProductDetail({ productId }: ProductDetailProps) {
         totalPrice: total
       });
       
+      // room이 제대로 생성되었는지 확인
+      if (!room || !room.id) {
+        console.error('채팅방 생성 실패: room 객체가 유효하지 않습니다.', room);
+        alert('채팅방 생성에 실패했습니다. 다시 시도해주세요.');
+        return;
+      }
+      
+      console.log('채팅방 생성 성공:', room);
+      
       // 채팅방 생성 성공 메시지 표시 및 모달 닫기
       alert('채팅방이 생성되었습니다!');
       setShowDatePicker(false);
@@ -181,59 +190,85 @@ export default function ProductDetail({ productId }: ProductDetailProps) {
       
       // 게시물명 가져오기
       const postTitle = product.title || postDetail.goods || '게시물';
+      
+      // room.id를 변수에 저장 (클로저 문제 방지)
+      const roomId = room.id;
 
       // 웹소켓 연결 및 메시지 전송
       const sendMessageViaWebSocket = () => {
         return new Promise<void>((resolve, reject) => {
-          const client = getStompClient();
+          const messageText = `${postTitle}에 대해 ${startDateFormatted}부터 ${endDateFormatted}까지 대여를 요청했어요!`;
           
+          // 메시지 전송 함수
+          const sendMessage = () => {
+            const client = getStompClient();
+            if (client && client.connected && roomId) {
+              const message = {
+                roomId: roomId,
+                text: messageText
+              };
+              
+              client.publish({
+                destination: '/pub/chatting/send',
+                body: JSON.stringify(message)
+              });
+              console.log('메시지 전송 성공:', messageText);
+              resolve();
+              return true;
+            }
+            return false;
+          };
+
           // 이미 연결되어 있으면 바로 전송
-          if (client && client.connected) {
-            const message = {
-              roomId: room.id,
-              text: `${postTitle}에 대해 ${startDateFormatted}부터 ${endDateFormatted}까지 대여를 요청했어요!`
-            };
-            
-            client.publish({
-              destination: '/pub/chatting/send',
-              body: JSON.stringify(message)
-            });
-            resolve();
+          if (sendMessage()) {
             return;
           }
 
-          // 연결되어 있지 않으면 연결 후 전송
-          connectWebSocket(
-            () => {
-              const connectedClient = getStompClient();
-              if (connectedClient && connectedClient.connected) {
-                const message = {
-                  roomId: room.id,
-                  text: `${postTitle}에 대해 ${startDateFormatted}부터 ${endDateFormatted}까지 대여를 요청했어요!`
-                };
+          // 연결되어 있지 않으면 연결 시도
+          try {
+            connectWebSocket(
+              () => {
+                // 연결 완료 후 메시지 전송 시도
+                // 연결이 완료되어도 약간의 지연이 있을 수 있으므로 재시도
+                let retryCount = 0;
+                const maxRetries = 20; // 2초 (100ms * 20)
                 
-                connectedClient.publish({
-                  destination: '/pub/chatting/send',
-                  body: JSON.stringify(message)
-                });
-                resolve();
-              } else {
-                reject(new Error('WebSocket 연결 실패'));
+                const checkAndSend = setInterval(() => {
+                  retryCount++;
+                  if (sendMessage()) {
+                    clearInterval(checkAndSend);
+                  } else if (retryCount >= maxRetries) {
+                    clearInterval(checkAndSend);
+                    console.error('메시지 전송 실패: WebSocket 연결 후 전송 타임아웃');
+                    reject(new Error('메시지 전송 타임아웃'));
+                  }
+                }, 100);
+              },
+              (error) => {
+                console.error('WebSocket 연결 오류:', error);
+                reject(error);
               }
-            },
-            (error) => {
-              reject(error);
-            }
-          );
+            );
+          } catch (error) {
+            console.error('WebSocket 연결 초기화 실패:', error);
+            reject(error);
+          }
         });
       };
 
-      await sendMessageViaWebSocket();
+      try {
+        await sendMessageViaWebSocket();
+        console.log('메시지 전송 완료');
+      } catch (error) {
+        console.error('메시지 전송 실패:', error);
+        // 메시지 전송 실패해도 채팅방은 생성되었으므로 이동은 진행
+        // 사용자에게 알림은 하지 않음 (채팅방에서 직접 메시지를 보낼 수 있음)
+      }
 
       // 채팅방으로 이동
-      router.push(`/chat/${room.id}`);
+      router.push(`/chat/${roomId}`);
     } catch (error) {
-      console.error('채팅방 생성 또는 메시지 전송 실패:', error);
+      console.error('채팅방 생성 실패:', error);
       alert('채팅방 생성에 실패했습니다. 다시 시도해주세요.');
     }
   };
