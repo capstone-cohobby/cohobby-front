@@ -34,7 +34,12 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [rentInfo, setRentInfo] = useState<{ dailyPrice: number; rule: string | null } | null>(null);
+  const [rentInfo, setRentInfo] = useState<{ 
+    dailyPrice: number; 
+    rule: string | null;
+    startAt: string | null;
+    duedate: string | null;
+  } | null>(null);
   const [negotiationDailyPrice, setNegotiationDailyPrice] = useState<string>('');
   const [negotiationRule, setNegotiationRule] = useState<string>('');
   const [messages, setMessages] = useState<Message[]>([]);
@@ -159,7 +164,9 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
           if (mounted) {
             setRentInfo({
               dailyPrice: rent.dailyPrice,
-              rule: rent.rule
+              rule: rent.rule,
+              startAt: rent.startAt,
+              duedate: rent.duedate
             });
           }
         } catch (err) {
@@ -538,6 +545,19 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
           });
         }
         
+        // Rent 정보 업데이트
+        try {
+          const updatedRent = await getRentByRoomId(roomId);
+          setRentInfo({
+            dailyPrice: updatedRent.dailyPrice,
+            rule: updatedRent.rule,
+            startAt: updatedRent.startAt,
+            duedate: updatedRent.duedate
+          });
+        } catch (err) {
+          console.error('Rent 정보 업데이트 실패:', err);
+        }
+        
         setShowDatePicker(false);
         setStartDate(null);
         setEndDate(null);
@@ -550,6 +570,12 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
 
   const formatMonthYear = (date: Date) => {
     return `${date.getFullYear()}년 ${date.getMonth() + 1}월`;
+  };
+
+  const formatDateForDisplay = (dateString: string | null): string => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`;
   };
 
   const handlePriceNegotiation = async () => {
@@ -773,10 +799,23 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
               </button>
               
               <button
-                onClick={() => {
+                onClick={async () => {
                   setShowActionMenu(false);
                   setStartDate(null); // 모달 열 때 선택 초기화
                   setEndDate(null);
+                  // Rent 정보 다시 가져오기 (최신 날짜 정보 표시를 위해)
+                  try {
+                    const roomId = parseInt(chatId);
+                    const rent = await getRentByRoomId(roomId);
+                    setRentInfo({
+                      dailyPrice: rent.dailyPrice,
+                      rule: rent.rule,
+                      startAt: rent.startAt,
+                      duedate: rent.duedate
+                    });
+                  } catch (error) {
+                    console.error('Rent 정보 가져오기 실패:', error);
+                  }
                   setShowDatePicker(true);
                 }}
                 className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-purple-50 transition-colors mb-2"
@@ -815,7 +854,9 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
                     const rent = await getRentByRoomId(roomId);
                     setRentInfo({
                       dailyPrice: rent.dailyPrice,
-                      rule: rent.rule
+                      rule: rent.rule,
+                      startAt: rent.startAt,
+                      duedate: rent.duedate
                     });
                     setNegotiationDailyPrice(rent.dailyPrice.toString());
                     setShowPriceNegotiation(true);
@@ -844,7 +885,9 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
                     const rent = await getRentByRoomId(roomId);
                     setRentInfo({
                       dailyPrice: rent.dailyPrice,
-                      rule: rent.rule
+                      rule: rent.rule,
+                      startAt: rent.startAt,
+                      duedate: rent.duedate
                     });
                     setNegotiationRule(rent.rule || '');
                     setShowRuleNegotiation(true);
@@ -995,7 +1038,7 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
             </div>
 
             {/* 범례 */}
-            <div className="flex items-center justify-center gap-4 mb-6 text-xs text-gray-600">
+            <div className="flex items-center justify-center gap-4 mb-4 text-xs text-gray-600">
               <div className="flex items-center gap-1">
                 <div className="w-3 h-3 rounded bg-purple-500"></div>
                 <span>선택</span>
@@ -1009,6 +1052,22 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
                 <span>불가</span>
               </div>
             </div>
+
+            {/* 현재 대여 날짜 표시 */}
+            {rentInfo && (rentInfo.startAt || rentInfo.duedate) && (
+              <div className="bg-blue-50 rounded-xl p-3 mb-4">
+                <h5 className="font-medium text-blue-800 mb-1 text-sm">현재 대여 날짜</h5>
+                <div className="text-sm text-blue-700">
+                  {rentInfo.startAt && rentInfo.duedate ? (
+                    <div>{formatDateForDisplay(rentInfo.startAt)} ~ {formatDateForDisplay(rentInfo.duedate)}</div>
+                  ) : rentInfo.startAt ? (
+                    <div>{formatDateForDisplay(rentInfo.startAt)}부터</div>
+                  ) : rentInfo.duedate ? (
+                    <div>{formatDateForDisplay(rentInfo.duedate)}까지</div>
+                  ) : null}
+                </div>
+              </div>
+            )}
 
             {/* 날짜 전송하기 버튼 */}
             <button
