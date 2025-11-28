@@ -43,6 +43,7 @@ export default function ProductDetail({ productId }: ProductDetailProps) {
   const [selectedEndDate, setSelectedEndDate] = useState('');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [product, setProduct] = useState<Product | null>(null);
+  const [postDetail, setPostDetail] = useState<GetPostDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -110,6 +111,7 @@ export default function ProductDetail({ productId }: ProductDetailProps) {
         };
 
         setProduct(mappedProduct);
+        setPostDetail(postDetail);
       } catch (err) {
         console.error('게시물 상세 조회 실패:', err);
         setError('게시물을 불러오는데 실패했습니다.');
@@ -147,13 +149,19 @@ export default function ProductDetail({ productId }: ProductDetailProps) {
   };
 
   const handleContinueToChat = async () => {
-    if (!selectedStartDate || !selectedEndDate || !product) {
+    if (!selectedStartDate || !selectedEndDate || !product || !postDetail) {
       return;
     }
 
+    const { total } = calculatePrice();
+
     try {
-      // 채팅방 생성
-      const room = await createChatRoom(Number(product.id));
+      // 채팅방 생성 (날짜와 가격 정보 포함)
+      const room = await createChatRoom(Number(product.id), {
+        startDate: selectedStartDate,
+        endDate: selectedEndDate,
+        totalPrice: total
+      });
       
       // 채팅방 생성 성공 메시지 표시 및 모달 닫기
       alert('채팅방이 생성되었습니다!');
@@ -343,14 +351,15 @@ export default function ProductDetail({ productId }: ProductDetailProps) {
   };
 
   const calculatePrice = () => {
-    if (!selectedStartDate || !selectedEndDate) return { total: 0, days: 0 };
+    if (!selectedStartDate || !selectedEndDate || !postDetail) return { total: 0, days: 0 };
 
     const start = new Date(selectedStartDate);
     const end = new Date(selectedEndDate);
     const diffTime = Math.abs(end.getTime() - start.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
 
-    const dailyPrice = 8000;
+    // 게시물의 실제 일일 대여료 가져오기
+    const dailyPrice = postDetail.dailyPrice || 0;
     const total = diffDays * dailyPrice;
 
     return { total, days: diffDays };

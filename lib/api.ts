@@ -203,7 +203,25 @@ export async function confirmPayment(orderId: string, paymentKey: string, amount
 }
 
 // 채팅방 생성
-export async function createChatRoom(postId: number) {
+export async function createChatRoom(
+  postId: number,
+  options?: {
+    startDate?: string;
+    endDate?: string;
+    totalPrice?: number;
+  }
+) {
+  const requestBody: any = { postId };
+  if (options?.startDate) {
+    requestBody.startDate = options.startDate;
+  }
+  if (options?.endDate) {
+    requestBody.endDate = options.endDate;
+  }
+  if (options?.totalPrice !== undefined) {
+    requestBody.totalPrice = options.totalPrice;
+  }
+
   const response = await apiFetch<{
     isSuccess: boolean;
     code: string;
@@ -217,7 +235,7 @@ export async function createChatRoom(postId: number) {
     };
   }>('/chatting/room', {
     method: 'POST',
-    body: JSON.stringify({ postId })
+    body: JSON.stringify(requestBody)
   });
   return response.result;
 }
