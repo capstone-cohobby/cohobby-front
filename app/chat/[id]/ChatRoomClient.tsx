@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import BottomNavigation from '../../../components/BottomNavigation';
-import { getChatMessages, getCurrentUser, getChatRooms, getUserProfile, getReadStatus, getPeerReadStatus, updateRentDates } from '../../../lib/api';
+import { getChatMessages, getCurrentUser, getChatRooms, getUserProfile, getReadStatus, getPeerReadStatus, updateRentDates, updateRentDailyPrice, updateRentRule, getRentByRoomId } from '../../../lib/api';
 import { connectWebSocket, disconnectWebSocket, getStompClient } from '../../../lib/websocket';
 import { DEFAULT_PROFILE_IMAGE } from '../../../lib/constants';
 import { Client } from '@stomp/stompjs';
@@ -29,9 +29,14 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
   const [reportDetails, setReportDetails] = useState('');
   const [showActionMenu, setShowActionMenu] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showPriceNegotiation, setShowPriceNegotiation] = useState(false);
+  const [showRuleNegotiation, setShowRuleNegotiation] = useState(false);
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [rentInfo, setRentInfo] = useState<{ dailyPrice: number; rule: string | null } | null>(null);
+  const [negotiationDailyPrice, setNegotiationDailyPrice] = useState<string>('');
+  const [negotiationRule, setNegotiationRule] = useState<string>('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [currentUser, setCurrentUser] = useState<{ id: number; nickname: string } | null>(null);
@@ -146,6 +151,19 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
           }
         } catch (err) {
           console.error('읽음 상태 가져오기 실패:', err);
+        }
+
+        // Rent 정보 가져오기
+        try {
+          const rent = await getRentByRoomId(roomId);
+          if (mounted) {
+            setRentInfo({
+              dailyPrice: rent.dailyPrice,
+              rule: rent.rule
+            });
+          }
+        } catch (err) {
+          console.error('Rent 정보 가져오기 실패:', err);
         }
 
         // 채팅방 정보 저장
@@ -534,6 +552,77 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
     return `${date.getFullYear()}년 ${date.getMonth() + 1}월`;
   };
 
+  const handlePriceNegotiation = async () => {
+    if (!negotiationDailyPrice || !rentInfo) return;
+
+    const newPrice = parseInt(negotiationDailyPrice, 10);
+    if (isNaN(newPrice) || newPrice <= 0) {
+      alert('올바른 가격을 입력해주세요.');
+      return;
+    }
+
+    try {
+      const roomId = parseInt(chatId);
+      await updateRentDailyPrice(roomId, newPrice);
+
+      // 메시지 전송
+      const client = getStompClient();
+      if (client && client.connected) {
+        const message = {
+          roomId: roomId,
+          text: `일일 대여료를 ${newPrice.toLocaleString()}원으로 요청했어요!`
+        };
+        client.publish({
+          destination: '/pub/chatting/send',
+          body: JSON.stringify(message)
+        });
+      }
+
+      // Rent 정보 업데이트
+      setRentInfo({ ...rentInfo, dailyPrice: newPrice });
+      setShowPriceNegotiation(false);
+      setNegotiationDailyPrice('');
+    } catch (error) {
+      console.error('가격 업데이트 실패:', error);
+      alert('가격 업데이트에 실패했습니다. 다시 시도해주세요.');
+    }
+  };
+
+  const handleRuleNegotiation = async () => {
+    if (!negotiationRule.trim()) {
+      alert('대여 규칙을 입력해주세요.');
+      return;
+    }
+
+    try {
+      const roomId = parseInt(chatId);
+      await updateRentRule(roomId, negotiationRule.trim());
+
+      // 메시지 전송
+      const client = getStompClient();
+      if (client && client.connected) {
+        const message = {
+          roomId: roomId,
+          text: `대여 규칙을 "${negotiationRule.trim()}"로 요청했어요!`
+        };
+        client.publish({
+          destination: '/pub/chatting/send',
+          body: JSON.stringify(message)
+        });
+      }
+
+      // Rent 정보 업데이트
+      if (rentInfo) {
+        setRentInfo({ ...rentInfo, rule: negotiationRule.trim() });
+      }
+      setShowRuleNegotiation(false);
+      setNegotiationRule('');
+    } catch (error) {
+      console.error('규칙 업데이트 실패:', error);
+      alert('규칙 업데이트에 실패했습니다. 다시 시도해주세요.');
+    }
+  };
+
   const isDateInRange = (day: number | null): { isStart: boolean; isEnd: boolean; isInRange: boolean } => {
     if (!startDate || day === null) {
       return { isStart: false, isEnd: false, isInRange: false };
@@ -706,7 +795,7 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
                   setShowActionMenu(false);
                   router.push(`/payment/${chatId}`);
                 }}
-                className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-green-50 transition-colors"
+                className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-green-50 transition-colors mb-2"
               >
                 <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
                   <i className="ri-wallet-line text-green-600 text-xl"></i>
@@ -714,6 +803,64 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
                 <div className="text-left flex-1">
                   <p className="text-sm font-semibold text-gray-800">결제하기</p>
                   <p className="text-xs text-gray-500">대여료를 결제하세요</p>
+                </div>
+              </button>
+
+              <button
+                onClick={async () => {
+                  setShowActionMenu(false);
+                  // Rent 정보 다시 가져오기
+                  try {
+                    const roomId = parseInt(chatId);
+                    const rent = await getRentByRoomId(roomId);
+                    setRentInfo({
+                      dailyPrice: rent.dailyPrice,
+                      rule: rent.rule
+                    });
+                    setNegotiationDailyPrice(rent.dailyPrice.toString());
+                    setShowPriceNegotiation(true);
+                  } catch (error) {
+                    console.error('Rent 정보 가져오기 실패:', error);
+                    alert('정보를 불러오는데 실패했습니다.');
+                  }
+                }}
+                className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-blue-50 transition-colors mb-2"
+              >
+                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <i className="ri-money-dollar-circle-line text-blue-600 text-xl"></i>
+                </div>
+                <div className="text-left flex-1">
+                  <p className="text-sm font-semibold text-gray-800">가격 협상</p>
+                  <p className="text-xs text-gray-500">일일 대여료를 협상하세요</p>
+                </div>
+              </button>
+
+              <button
+                onClick={async () => {
+                  setShowActionMenu(false);
+                  // Rent 정보 다시 가져오기
+                  try {
+                    const roomId = parseInt(chatId);
+                    const rent = await getRentByRoomId(roomId);
+                    setRentInfo({
+                      dailyPrice: rent.dailyPrice,
+                      rule: rent.rule
+                    });
+                    setNegotiationRule(rent.rule || '');
+                    setShowRuleNegotiation(true);
+                  } catch (error) {
+                    console.error('Rent 정보 가져오기 실패:', error);
+                    alert('정보를 불러오는데 실패했습니다.');
+                  }
+                }}
+                className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-orange-50 transition-colors"
+              >
+                <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <i className="ri-file-list-line text-orange-600 text-xl"></i>
+                </div>
+                <div className="text-left flex-1">
+                  <p className="text-sm font-semibold text-gray-800">대여 규칙 협상</p>
+                  <p className="text-xs text-gray-500">대여 규칙을 협상하세요</p>
                 </div>
               </button>
             </div>
@@ -871,6 +1018,121 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
             >
               날짜 전송하기
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* 가격 협상 모달 */}
+      {showPriceNegotiation && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-800">가격 협상</h3>
+              <button
+                onClick={() => {
+                  setShowPriceNegotiation(false);
+                  setNegotiationDailyPrice('');
+                }}
+                className="w-8 h-8 flex items-center justify-center"
+              >
+                <i className="ri-close-line text-gray-500 text-xl"></i>
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <p className="text-sm text-gray-600 mb-2">현재 일일 대여료</p>
+              <p className="text-lg font-semibold text-gray-800 mb-4">
+                {rentInfo?.dailyPrice ? `${rentInfo.dailyPrice.toLocaleString()}원` : '-'}
+              </p>
+
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                새 일일 대여료
+              </label>
+              <input
+                type="number"
+                value={negotiationDailyPrice}
+                onChange={(e) => setNegotiationDailyPrice(e.target.value)}
+                placeholder="일일 대여료를 입력하세요"
+                className="w-full px-4 py-3 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                min="1"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowPriceNegotiation(false);
+                  setNegotiationDailyPrice('');
+                }}
+                className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-2xl font-medium hover:bg-gray-200 transition-colors"
+              >
+                취소
+              </button>
+              <button
+                onClick={handlePriceNegotiation}
+                disabled={!negotiationDailyPrice || parseInt(negotiationDailyPrice, 10) <= 0}
+                className="flex-1 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-2xl font-medium hover:from-blue-600 hover:to-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                수정
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 대여 규칙 협상 모달 */}
+      {showRuleNegotiation && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-sm max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-800">대여 규칙 협상</h3>
+              <button
+                onClick={() => {
+                  setShowRuleNegotiation(false);
+                  setNegotiationRule('');
+                }}
+                className="w-8 h-8 flex items-center justify-center"
+              >
+                <i className="ri-close-line text-gray-500 text-xl"></i>
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <p className="text-sm text-gray-600 mb-2">현재 대여 규칙</p>
+              <p className="text-sm text-gray-800 mb-4 min-h-[40px] p-3 bg-gray-50 rounded-xl">
+                {rentInfo?.rule || '규칙이 없습니다.'}
+              </p>
+
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                새 대여 규칙
+              </label>
+              <textarea
+                value={negotiationRule}
+                onChange={(e) => setNegotiationRule(e.target.value)}
+                placeholder="대여 규칙을 입력하세요"
+                rows={6}
+                className="w-full px-4 py-3 border border-gray-200 rounded-2xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowRuleNegotiation(false);
+                  setNegotiationRule('');
+                }}
+                className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-2xl font-medium hover:bg-gray-200 transition-colors"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleRuleNegotiation}
+                disabled={!negotiationRule.trim()}
+                className="flex-1 py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-2xl font-medium hover:from-orange-600 hover:to-orange-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                수정
+              </button>
+            </div>
           </div>
         </div>
       )}
