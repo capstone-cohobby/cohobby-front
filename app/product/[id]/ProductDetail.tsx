@@ -481,14 +481,14 @@ export default function ProductDetail({ productId }: ProductDetailProps) {
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50">
       <Header />
       
-      <div className="px-4 pt-6 pb-60">
+      <div className="px-4 pt-6 pb-60 max-w-2xl mx-auto">
         {/* 상품 이미지 캐러셀 */}
         <div className="relative mb-6">
-          <div className="aspect-square rounded-2xl overflow-hidden bg-white shadow-lg">
+          <div className="aspect-square md:aspect-auto md:min-h-[400px] md:max-h-[600px] rounded-2xl overflow-hidden bg-white shadow-lg flex items-center justify-center">
             <img 
               src={product.images[currentImageIndex]} 
               alt={product.title}
-              className="w-full h-full object-cover"
+              className="w-full h-full md:w-auto md:max-w-full md:max-h-full object-contain"
             />
           </div>
           
