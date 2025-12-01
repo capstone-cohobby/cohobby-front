@@ -6,8 +6,18 @@ import Header from '../components/Header';
 import ProductCard from '../components/ProductCard';
 import BottomNavigation from '../components/BottomNavigation';
 import { getPostsByCategory, getPostsByHobby, GetPostResponse } from '../lib/api';
+import { isAuthenticated } from '../lib/auth';
 
 export default function Home() {
+  const router = useRouter();
+  
+  // 로그인 체크
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      router.push('/login');
+    }
+  }, [router]);
+
   const [selectedMainCategory, setSelectedMainCategory] = useState('스포츠');
   const [selectedSubCategory, setSelectedSubCategory] = useState('');
   const [products, setProducts] = useState<Array<{
@@ -27,7 +37,6 @@ export default function Home() {
     userId?: number | null;
   }>>([]);
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
 
   const categories: Record<string, string[]> = {
     '관람': ['콘서트', '뮤지컬/오페라', '스포츠경기'],
