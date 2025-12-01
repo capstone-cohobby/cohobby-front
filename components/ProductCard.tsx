@@ -2,6 +2,9 @@
 'use client';
 
 import Link from 'next/link';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { getCurrentUser, deletePost } from '../lib/api';
 
 interface Product {
   id: string;
@@ -15,6 +18,7 @@ interface Product {
   price: string;
   image: string;
   available: boolean;
+  userId?: number | null;
 }
 
 interface ProductCardProps {
@@ -22,6 +26,46 @@ interface ProductCardProps {
 }
 
 export default function ProductCard({ product }: ProductCardProps) {
+  const router = useRouter();
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        const user = await getCurrentUser();
+        setCurrentUserId(user.id);
+      } catch (error) {
+        // 로그인하지 않은 경우
+        setCurrentUserId(null);
+      }
+    };
+    fetchCurrentUser();
+  }, []);
+
+  const isMyPost = currentUserId !== null && product.userId !== null && currentUserId === product.userId;
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!confirm('정말 이 게시물을 삭제하시겠습니까?')) {
+      return;
+    }
+
+    try {
+      setIsDeleting(true);
+      await deletePost(Number(product.id));
+      alert('게시물이 삭제되었습니다.');
+      router.refresh();
+    } catch (error) {
+      console.error('게시물 삭제 실패:', error);
+      alert('게시물 삭제에 실패했습니다.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <Link href={`/product/${product.id}`}>
       <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-4 shadow-sm border border-white/20 hover:shadow-lg transition-all duration-300 cursor-pointer">
@@ -40,9 +84,19 @@ export default function ProductCard({ product }: ProductCardProps) {
             </div>
           )}
           
-          <button className="absolute top-2 right-2 w-8 h-8 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white transition-all duration-300 shadow-lg cursor-pointer">
-            <i className="ri-heart-line text-gray-600 text-sm hover:text-red-500 transition-colors duration-300"></i>
-          </button>
+          {isMyPost ? (
+            <button
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="absolute top-2 right-2 w-8 h-8 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white transition-all duration-300 shadow-lg cursor-pointer disabled:opacity-50"
+            >
+              <i className="ri-delete-bin-line text-gray-600 text-sm hover:text-red-500 transition-colors duration-300"></i>
+            </button>
+          ) : (
+            <button className="absolute top-2 right-2 w-8 h-8 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white transition-all duration-300 shadow-lg cursor-pointer">
+              <i className="ri-heart-line text-gray-600 text-sm hover:text-red-500 transition-colors duration-300"></i>
+            </button>
+          )}
         </div>
 
         <div className="space-y-2">

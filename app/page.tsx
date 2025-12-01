@@ -24,6 +24,7 @@ export default function Home() {
     available: boolean;
     category: string;
     keywords: string[];
+    userId?: number | null;
   }>>([]);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -112,7 +113,8 @@ export default function Home() {
       image: post.imageUrl || 'https://via.placeholder.com/300x400',
       available: isAvailable,
       category: post.categoryName || '',
-      keywords: [] // TODO: 키워드 필드 추가 필요
+      keywords: [], // TODO: 키워드 필드 추가 필요
+      userId: post.userId
     };
   };
 

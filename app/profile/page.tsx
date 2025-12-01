@@ -3,8 +3,10 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import Header from '../../components/Header';
 import BottomNavigation from '../../components/BottomNavigation';
+import { getMyRentalHistory, getMyPosts, MyRentalHistoryResponse, GetPostResponse } from '../../lib/api';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
@@ -27,6 +29,10 @@ export default function ProfilePage() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [profileData, setProfileData] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [rentalHistory, setRentalHistory] = useState<MyRentalHistoryResponse[]>([]);
+  const [myPosts, setMyPosts] = useState<GetPostResponse[]>([]);
+  const [isLoadingRentals, setIsLoadingRentals] = useState(false);
+  const [isLoadingPosts, setIsLoadingPosts] = useState(false);
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -97,6 +103,46 @@ export default function ProfilePage() {
     fetchUserProfile();
   }, [router]);
 
+  // 대여 내역 조회
+  useEffect(() => {
+    const fetchRentalHistory = async () => {
+      if (selectedTab !== '대여내역') return;
+      
+      setIsLoadingRentals(true);
+      try {
+        const rentals = await getMyRentalHistory();
+        setRentalHistory(rentals);
+      } catch (error) {
+        console.error('대여 내역 조회 실패:', error);
+        setRentalHistory([]);
+      } finally {
+        setIsLoadingRentals(false);
+      }
+    };
+
+    fetchRentalHistory();
+  }, [selectedTab]);
+
+  // 내 등록 상품 조회
+  useEffect(() => {
+    const fetchMyPosts = async () => {
+      if (selectedTab !== '등록상품') return;
+      
+      setIsLoadingPosts(true);
+      try {
+        const posts = await getMyPosts();
+        setMyPosts(posts);
+      } catch (error) {
+        console.error('등록 상품 조회 실패:', error);
+        setMyPosts([]);
+      } finally {
+        setIsLoadingPosts(false);
+      }
+    };
+
+    fetchMyPosts();
+  }, [selectedTab]);
+
   // 사용자 레벨 계산 (score 기반)
   const getUserLevel = (score: number) => {
     if (score >= 2000) return '플래티넘';
@@ -126,74 +172,46 @@ export default function ProfilePage() {
     completedDeals: 0 // TODO: 실제 완료 거래 수 API 연동 필요
   };
 
-  const rentalHistory = [
-    {
-      id: 1,
-      item: 'Canon EOS R5 미러리스',
-      owner: '김포토',
-      period: '2024.01.15 - 2024.01.17',
-      price: '50,000원',
-      status: '완료',
-      rating: 5,
-      hasReview: true, // 이미 리뷰 작성함
-      image: 'https://readdy.ai/api/search-image?query=Canon%20EOS%20R5%20mirrorless%20camera%20professional%20photography%20equipment%20with%20lens%20on%20clean%20white%20background&width=80&height=80&seq=camera2&orientation=squarish'
-    },
-    {
-      id: 2,
-      item: 'Wilson 골프채 세트',
-      owner: '골프마니아',
-      period: '2024.01.10 - 2024.01.12',
-      price: '75,000원',
-      status: '완료',
-      rating: 0,
-      hasReview: false, // 리뷰 미작성
-      image: 'https://readdy.ai/api/search-image?query=Wilson%20golf%20club%20set%20professional%20equipment%20with%20golf%20bag%20on%20clean%20white%20background&width=80&height=80&seq=golf2&orientation=squarish'
-    },
-    {
-      id: 3,
-      item: '4인용 캠핑 텐트',
-      owner: '캠핑러버',
-      period: '2024.01.05 - 2024.01.07',
-      price: '36,000원',
-      status: '완료',
-      rating: 5,
-      hasReview: true, // 이미 리뷰 작성함
-      image: 'https://readdy.ai/api/search-image?query=Four%20person%20camping%20tent%20outdoor%20equipment%20green%20and%20orange%20colors%20on%20clean%20white%20background&width=80&height=80&seq=tent2&orientation=squarish'
+  // RentStatus를 한글로 변환
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'CREATED':
+        return '생성됨';
+      case 'CONFIRMED':
+        return '확정됨';
+      case 'ONGOING':
+        return '대여중';
+      case 'COMPLETED':
+        return '완료';
+      case 'CANCELLED':
+        return '취소됨';
+      case 'DISPUTED':
+        return '분쟁중';
+      default:
+        return status;
     }
-  ];
+  };
 
-  const myItems = [
-    {
-      id: 1,
-      title: 'MacBook Pro 16인치',
-      category: '전자기기',
-      price: '30,000원/일',
-      status: '대여중',
-      rentalCount: 8,
-      rating: 4.9,
-      image: 'https://readdy.ai/api/search-image?query=MacBook%20Pro%2016%20inch%20laptop%20computer%20silver%20color%20on%20clean%20white%20background%2C%20premium%20technology%20product&width=80&height=80&seq=macbook1&orientation=squarish'
-    },
-    {
-      id: 2,
-      title: 'Nintendo Switch OLED',
-      category: '게임',
-      price: '10,000원/일',
-      status: '대여가능',
-      rentalCount: 15,
-      rating: 4.8,
-      image: 'https://readdy.ai/api/search-image?query=Nintendo%20Switch%20OLED%20gaming%20console%20with%20Joy-Cond%20controllers%20on%20clean%20white%20background&width=80&height=80&seq=switch2&orientation=squarish'
-    },
-    {
-      id: 3,
-      title: '전동 드릴 세트',
-      category: '공구',
-      price: '8,000원/일',
-      status: '대여가능',
-      rentalCount: 5,
-      rating: 4.7,
-      image: 'https://readdy.ai/api/search-image?query=Electric%20drill%20set%20professional%20tools%20with%20case%20on%20clean%20white%20background%2C%20power%20tools%20equipment&width=80&height=80&seq=drill1&orientation=squarish'
+  // RentStatus에 따른 색상
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'CREATED':
+        return 'bg-gray-100 text-gray-600';
+      case 'CONFIRMED':
+        return 'bg-blue-100 text-blue-600';
+      case 'ONGOING':
+        return 'bg-purple-100 text-purple-600';
+      case 'COMPLETED':
+        return 'bg-green-100 text-green-600';
+      case 'CANCELLED':
+        return 'bg-red-100 text-red-600';
+      case 'DISPUTED':
+        return 'bg-orange-100 text-orange-600';
+      default:
+        return 'bg-gray-100 text-gray-600';
     }
-  ];
+  };
+
 
   const wishlistItems = [
     {
@@ -319,84 +337,129 @@ export default function ProfilePage() {
   const renderContent = () => {
     switch (selectedTab) {
       case '대여내역':
+        if (isLoadingRentals) {
+          return (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i className="ri-loader-4-line text-gray-400 text-2xl animate-spin"></i>
+              </div>
+              <p className="text-gray-500 text-sm">로딩 중...</p>
+            </div>
+          );
+        }
+        if (rentalHistory.length === 0) {
+          return (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i className="ri-inbox-line text-gray-400 text-2xl"></i>
+              </div>
+              <p className="text-gray-500 text-sm">대여 내역이 없습니다</p>
+            </div>
+          );
+        }
         return (
           <div className="space-y-4">
-            {rentalHistory.map((item) => (
-              <div key={item.id} className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 shadow-sm border border-white/20">
-                <div className="flex items-center gap-4">
-                  <img 
-                    src={item.image} 
-                    alt={item.item}
-                    className="w-16 h-16 rounded-xl object-cover"
-                  />
-                  <div className="flex-1">
-                    <h3 className="font-bold text-gray-800 text-sm mb-1">{item.item}</h3>
-                    <p className="text-xs text-gray-500 mb-1">대여자: {item.owner}</p>
-                    <p className="text-xs text-gray-500 mb-2">{item.period}</p>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-bold text-purple-600">{item.price}</span>
-                      <div className="flex items-center gap-2">
-                        {item.hasReview ? (
-                          <div className="flex items-center gap-1">
-                            {[...Array(5)].map((_, i) => (
-                              <i key={i} className={`ri-star-${i < item.rating ? 'fill' : 'line'} text-yellow-400 text-xs`}></i>
-                            ))}
-                          </div>
-                        ) : (
+            {rentalHistory.map((item) => {
+              const period = item.startAt && item.duedate
+                ? `${new Date(item.startAt).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\./g, '.').replace(/\s/g, '')} - ${new Date(item.duedate).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\./g, '.').replace(/\s/g, '')}`
+                : '날짜 미정';
+              const price = item.totalPrice ? `${item.totalPrice.toLocaleString()}원` : '가격 미정';
+              const imageUrl = item.postImageUrl || 'https://via.placeholder.com/80x80';
+              
+              return (
+                <div key={item.id} className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 shadow-sm border border-white/20">
+                  <div className="flex items-center gap-4">
+                    <img 
+                      src={imageUrl} 
+                      alt={item.postGoods || '상품'}
+                      className="w-16 h-16 rounded-xl object-cover"
+                    />
+                    <div className="flex-1">
+                      <h3 className="font-bold text-gray-800 text-sm mb-1">{item.postGoods || '상품명 없음'}</h3>
+                      <p className="text-xs text-gray-500 mb-1">빌려준 사람: {item.ownerNickname || '알 수 없음'}</p>
+                      <p className="text-xs text-gray-500 mb-2">{period}</p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-bold text-purple-600">{price}</span>
+                        <div className="flex items-center gap-2">
                           <button
                             onClick={() => handleWriteReview(item.id)}
                             className="px-3 py-1 bg-purple-500 text-white rounded-full text-xs font-medium hover:bg-purple-600 transition-colors whitespace-nowrap"
                           >
                             리뷰 작성하기
                           </button>
-                        )}
-                        <span className="px-2 py-1 bg-green-100 text-green-600 rounded-full text-xs font-medium">
-                          {item.status}
-                        </span>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(item.status)}`}>
+                            {getStatusText(item.status)}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         );
 
       case '등록상품':
+        if (isLoadingPosts) {
+          return (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i className="ri-loader-4-line text-gray-400 text-2xl animate-spin"></i>
+              </div>
+              <p className="text-gray-500 text-sm">로딩 중...</p>
+            </div>
+          );
+        }
+        if (myPosts.length === 0) {
+          return (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i className="ri-inbox-line text-gray-400 text-2xl"></i>
+              </div>
+              <p className="text-gray-500 text-sm">등록한 상품이 없습니다</p>
+            </div>
+          );
+        }
         return (
           <div className="space-y-4">
-            {myItems.map((item) => (
-              <div key={item.id} className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 shadow-sm border border-white/20">
-                <div className="flex items-center gap-4">
-                  <img 
-                    src={item.image} 
-                    alt={item.title}
-                    className="w-16 h-16 rounded-xl object-cover"
-                  />
-                  <div className="flex-1">
-                    <h3 className="font-bold text-gray-800 text-sm mb-1">{item.title}</h3>
-                    <p className="text-xs text-gray-500 mb-1">{item.category}</p>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-bold text-purple-600">{item.price}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-500">{item.rentalCount}회 대여</span>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          item.status === '대여중' 
-                            ? 'bg-blue-100 text-blue-600' 
-                            : 'bg-green-100 text-green-600'
-                        }`}>
-                          {item.status}
-                        </span>
+            {myPosts.map((post) => {
+              const imageUrl = post.imageUrl || (post.postId ? `https://via.placeholder.com/80x80` : 'https://via.placeholder.com/80x80');
+              const price = post.dailyPrice ? `${post.dailyPrice.toLocaleString()}원/일` : '가격 문의';
+              const status = post.availableFrom && post.availableUntil
+                ? (new Date() >= new Date(post.availableFrom) && new Date() <= new Date(post.availableUntil) ? '대여가능' : '대여불가')
+                : '대여가능';
+              
+              return (
+                <Link key={post.postId} href={`/product/${post.postId}`}>
+                  <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 shadow-sm border border-white/20 hover:shadow-md transition-all cursor-pointer">
+                    <div className="flex items-center gap-4">
+                      <img 
+                        src={imageUrl} 
+                        alt={post.goods || '상품'}
+                        className="w-16 h-16 rounded-xl object-cover"
+                      />
+                      <div className="flex-1">
+                        <h3 className="font-bold text-gray-800 text-sm mb-1">{post.goods || '상품명 없음'}</h3>
+                        <p className="text-xs text-gray-500 mb-1">{post.categoryName || ''} {post.hobbyName ? `> ${post.hobbyName}` : ''}</p>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-bold text-purple-600">{price}</span>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              status === '대여가능' 
+                                ? 'bg-green-100 text-green-600' 
+                                : 'bg-gray-100 text-gray-600'
+                            }`}>
+                              {status}
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 mt-1">
-                      <i className="ri-star-fill text-yellow-400 text-xs"></i>
-                      <span className="text-xs text-gray-600">{item.rating}</span>
-                    </div>
                   </div>
-                </div>
-              </div>
-            ))}
+                </Link>
+              );
+            })}
           </div>
         );
 

@@ -7,224 +7,87 @@ import { Suspense } from 'react';
 import Header from '../../components/Header';
 import ProductCard from '../../components/ProductCard';
 import BottomNavigation from '../../components/BottomNavigation';
+import { getPostsBySearch, GetPostResponse } from '../../lib/api';
 
 function SearchContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [searchQuery, setSearchQuery] = useState('');
+  const [products, setProducts] = useState<Array<{
+    id: string;
+    title: string;
+    owner: string;
+    verified: boolean;
+    rating: number;
+    reviews: number;
+    location: string;
+    time: string;
+    price: string;
+    image: string;
+    available: boolean;
+    category: string;
+    keywords: string[];
+    userId?: number | null;
+  }>>([]);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const query = searchParams.get('q') || '';
     setSearchQuery(query);
   }, [searchParams]);
 
-  const allProducts = [
-    // 관람
-    {
-      id: '1',
-      title: '콘서트 쌍안경',
-      owner: '뮤직러버',
-      verified: true,
-      rating: 4.9,
-      reviews: 15,
-      location: '강남구 역삼동',
+  // 백엔드 응답을 프론트엔드 형식으로 변환
+  const mapPostToProduct = (post: GetPostResponse) => {
+    const today = new Date();
+    const availableFrom = post.availableFrom ? new Date(post.availableFrom) : null;
+    const availableUntil = post.availableUntil ? new Date(post.availableUntil) : null;
+    const isAvailable = availableFrom && availableUntil 
+      ? today >= availableFrom && today <= availableUntil 
+      : true;
+
+    return {
+      id: String(post.postId),
+      title: post.goods || '',
+      owner: post.userNickname || '알 수 없음',
+      verified: false,
+      rating: 0,
+      reviews: 0,
+      location: '',
       time: '보통 1시간 이내',
-      price: '3,000원/일',
-      image: 'https://readdy.ai/api/search-image?query=Professional%20binoculars%20for%20concerts%20and%20theater%20performances%2C%20compact%20black%20opera%20glasses%20on%20clean%20white%20background%2C%20elegant%20design%20for%20cultural%20events&width=300&height=400&seq=binoculars1&orientation=portrait',
-      available: true,
-      category: '관람',
-      keywords: ['콘서트', '쌍안경', '공연', '관람']
-    },
-    // 스포츠
-    {
-      id: '3',
-      title: 'Wilson 골프채 세트',
-      owner: '골프마니아',
-      verified: true,
-      rating: 4.8,
-      reviews: 31,
-      location: '분당구 정자동',
-      time: '보통 2시간 이내',
-      price: '25,000원/일',
-      image: 'https://readdy.ai/api/search-image?query=Wilson%20golf%20club%20set%20professional%20equipment%20with%20golf%20bag%2C%20complete%20iron%20and%20driver%20set%20on%20clean%20white%20background%2C%20premium%20golf%20gear&width=300&height=400&seq=golf1&orientation=portrait',
-      available: true,
-      category: '스포츠',
-      keywords: ['골프', '골프채', 'wilson', '스포츠', '운동']
-    },
-    {
-      id: '4',
-      title: '전문 클라이밍 장비 세트',
-      owner: '암벽등반가',
-      verified: true,
-      rating: 4.9,
-      reviews: 18,
-      location: '서대문구 연희동',
-      time: '보통 1시간 이내',
-      price: '15,000원/일',
-      image: 'https://readdy.ai/api/search-image?query=Professional%20rock%20climbing%20equipment%20set%20with%20harness%2C%20carabiners%2C%20and%20ropes%20on%20clean%20white%20background%2C%20safety%20climbing%20gear&width=300&height=400&seq=climbing1&orientation=portrait',
-      available: true,
-      category: '스포츠',
-      keywords: ['클라이밍', '등반', '암벽', '스포츠', '운동', '하네스']
-    },
-    {
-      id: '14',
-      title: '테니스 라켓 세트',
-      owner: '테니스왕',
-      verified: true,
-      rating: 4.7,
-      reviews: 22,
-      location: '강남구 청담동',
-      time: '보통 1시간 이내',
-      price: '8,000원/일',
-      image: 'https://readdy.ai/api/search-image?query=Professional%20tennis%20racket%20set%20with%20tennis%20balls%20on%20clean%20white%20background%2C%20sports%20equipment%20for%20tennis%20game&width=300&height=400&seq=tennis1&orientation=portrait',
-      available: true,
-      category: '스포츠',
-      keywords: ['테니스', '라켓', '스포츠', '운동', '테니스공']
-    },
-    // 악기
-    {
-      id: '5',
-      title: 'Yamaha 어쿠스틱 기타',
-      owner: '기타치는사람',
-      verified: true,
-      rating: 4.6,
-      reviews: 27,
-      location: '마포구 상암동',
-      time: '보통 1시간 이내',
-      price: '8,000원/일',
-      image: 'https://readdy.ai/api/search-image?query=Yamaha%20acoustic%20guitar%20wooden%20musical%20instrument%20on%20clean%20white%20background%2C%20professional%20guitar%20product%20photography%20warm%20wood%20finish&width=300&height=400&seq=guitar1&orientation=portrait',
-      available: true,
-      category: '악기',
-      keywords: ['기타', '야마하', 'yamaha', '어쿠스틱', '악기', '음악']
-    },
-    {
-      id: '15',
-      title: '전자 키보드 피아노',
-      owner: '피아노선생님',
-      verified: true,
-      rating: 4.8,
-      reviews: 16,
-      location: '서초구 반포동',
-      time: '보통 2시간 이내',
-      price: '12,000원/일',
-      image: 'https://readdy.ai/api/search-image?query=Digital%20keyboard%20piano%20electronic%20musical%20instrument%20with%20keys%20on%20clean%20white%20background%2C%20modern%20music%20equipment&width=300&height=400&seq=keyboard1&orientation=portrait',
-      available: true,
-      category: '악기',
-      keywords: ['피아노', '키보드', '전자피아노', '악기', '음악']
-    },
-    // 액티비티
-    {
-      id: '7',
-      title: '4인용 캠핑 텐트',
-      owner: '캠핑러버',
-      verified: true,
-      rating: 4.7,
-      reviews: 25,
-      location: '용산구 이태원동',
-      time: '보통 2시간 이내',
-      price: '12,000원/일',
-      image: 'https://readdy.ai/api/search-image?query=Four%20person%20camping%20tent%20outdoor%20equipment%20green%20and%20orange%20colors%20on%20clean%20white%20background%2C%20family%20camping%20gear&width=300&height=400&seq=tent1&orientation=portrait',
-      available: true,
-      category: '액티비티',
-      keywords: ['캠핑', '텐트', '야외', '아웃도어', '4인용']
-    },
-    {
-      id: '16',
-      title: '등산 배낭 60L',
-      owner: '산악인',
-      verified: true,
-      rating: 4.6,
-      reviews: 19,
-      location: '노원구 상계동',
-      time: '보통 1시간 이내',
-      price: '6,000원/일',
-      image: 'https://readdy.ai/api/search-image?query=Large%20hiking%20backpack%2060L%20outdoor%20camping%20equipment%20with%20straps%20on%20clean%20white%20background%2C%20mountain%20climbing%20gear&width=300&height=400&seq=backpack1&orientation=portrait',
-      available: true,
-      category: '액티비티',
-      keywords: ['등산', '배낭', '하이킹', '아웃도어', '백팩']
-    },
-    // 촬영
-    {
-      id: '9',
-      title: 'Canon EOS R5 미러리스',
-      owner: '김포토',
-      verified: true,
-      rating: 4.8,
-      reviews: 24,
-      location: '강남구 역삼동',
-      time: '보통 1시간 이내',
-      price: '25,000원/일',
-      image: 'https://readdy.ai/api/search-image?query=Canon%20EOS%20R5%20mirrorless%20camera%20professional%20photography%20equipment%20with%20lens%20on%20clean%20white%20background%2C%20product%20photography%20style%2C%20high%20quality%20DSLR%20camera&width=300&height=400&seq=camera1&orientation=portrait',
-      available: true,
-      category: '촬영',
-      keywords: ['카메라', '캐논', 'canon', '미러리스', '사진', '촬영']
-    },
-    {
-      id: '17',
-      title: 'DJI 드론 Mini 3',
-      owner: '드론파일럿',
-      verified: true,
-      rating: 4.9,
-      reviews: 21,
-      location: '송파구 잠실동',
-      time: '보통 1시간 이내',
-      price: '18,000원/일',
-      image: 'https://readdy.ai/api/search-image?query=DJI%20Mini%203%20drone%20quadcopter%20with%20controller%20on%20clean%20white%20background%2C%20professional%20aerial%20photography%20equipment&width=300&height=400&seq=drone1&orientation=portrait',
-      available: true,
-      category: '촬영',
-      keywords: ['드론', 'dji', '항공촬영', '촬영', '쿼드콥터']
-    },
-    // 게임
-    {
-      id: '11',
-      title: 'Nintendo Switch OLED',
-      owner: '게임러버',
-      verified: true,
-      rating: 4.9,
-      reviews: 18,
-      location: '서초구 서초동',
-      time: '보통 30분 이내',
-      price: '10,000원/일',
-      image: 'https://readdy.ai/api/search-image?query=Nintendo%20Switch%20OLED%20gaming%20console%20with%20Joy-Con%20controllers%20on%20clean%20white%20background%2C%20modern%20gaming%20device%20product%20photography&width=300&height=400&seq=switch1&orientation=portrait',
-      available: true,
-      category: '게임',
-      keywords: ['닌텐도', 'nintendo', 'switch', '게임', '콘솔']
-    },
-    {
-      id: '18',
-      title: 'PlayStation 5',
-      owner: '콘솔게이머',
-      verified: true,
-      rating: 4.8,
-      reviews: 26,
-      location: '마포구 홍대동',
-      time: '보통 1시간 이내',
-      price: '15,000원/일',
-      image: 'https://readdy.ai/api/search-image?query=PlayStation%205%20console%20with%20controller%20modern%20white%20gaming%20system%20on%20clean%20white%20background%2C%20next%20generation%20gaming%20device&width=300&height=400&seq=ps5_1&orientation=portrait',
-      available: true,
-      category: '게임',
-      keywords: ['플레이스테이션', 'playstation', 'ps5', '게임', '콘솔']
-    },
-    // 기타
-    {
-      id: '13',
-      title: '강아지 캐리어',
-      owner: '펫러버',
-      verified: true,
-      rating: 4.7,
-      reviews: 13,
-      location: '성동구 성수동',
-      time: '보통 1시간 이내',
-      price: '5,000원/일',
-      image: 'https://readdy.ai/api/search-image?query=Pet%20carrier%20bag%20for%20small%20dogs%20comfortable%20travel%20case%20with%20mesh%20windows%20on%20clean%20white%20background%2C%20pet%20transportation%20equipment&width=300&height=400&seq=carrier1&orientation=portrait',
-      available: true,
-      category: '기타',
-      keywords: ['강아지', '펫', '캐리어', '반려동물', '이동장']
-    }
-  ];
+      price: post.dailyPrice ? `${post.dailyPrice.toLocaleString()}원/일` : '가격 문의',
+      image: post.imageUrl || 'https://via.placeholder.com/300x400',
+      available: isAvailable,
+      category: post.categoryName || '',
+      keywords: [],
+      userId: post.userId
+    };
+  };
+
+  // 검색어가 변경될 때마다 API 호출
+  useEffect(() => {
+    const fetchSearchResults = async () => {
+      if (!searchQuery.trim()) {
+        setProducts([]);
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const posts = await getPostsBySearch(searchQuery);
+        const mappedProducts = posts.map(mapPostToProduct);
+        setProducts(mappedProducts);
+      } catch (error) {
+        console.error('검색 실패:', error);
+        setProducts([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSearchResults();
+  }, [searchQuery]);
 
   const handleSearch = (query: string) => {
-    setSearchQuery(query);
     if (query.trim()) {
       router.push(`/search?q=${encodeURIComponent(query)}`);
     }
@@ -235,20 +98,6 @@ function SearchContent() {
       handleSearch(searchQuery);
     }
   };
-
-  const getSearchResults = () => {
-    if (!searchQuery.trim()) return [];
-    
-    const query = searchQuery.toLowerCase();
-    return allProducts.filter(product => 
-      product.title.toLowerCase().includes(query) ||
-      product.owner.toLowerCase().includes(query) ||
-      product.location.toLowerCase().includes(query) ||
-      product.keywords.some(keyword => keyword.toLowerCase().includes(query))
-    );
-  };
-
-  const searchResults = getSearchResults();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-green-50">
@@ -292,14 +141,23 @@ function SearchContent() {
             <h2 className="text-lg font-bold text-gray-800">
               {searchQuery ? `'${searchQuery}' 검색 결과` : '검색 결과'}
             </h2>
-            <span className="text-sm text-gray-500">
-              {searchResults.length}개 발견
-            </span>
+            {searchQuery && (
+              <span className="text-sm text-gray-500">
+                {loading ? '검색 중...' : `${products.length}개 발견`}
+              </span>
+            )}
           </div>
           
-          {searchQuery && searchResults.length > 0 ? (
+          {loading ? (
+            <div className="text-center py-16">
+              <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <i className="ri-loader-4-line text-gray-400 text-3xl animate-spin"></i>
+              </div>
+              <p className="text-gray-500 text-sm">검색 중...</p>
+            </div>
+          ) : searchQuery && products.length > 0 ? (
             <div className="grid grid-cols-2 gap-4">
-              {searchResults.map((product) => (
+              {products.map((product) => (
                 <ProductCard key={product.id} product={product} />
               ))}
             </div>
