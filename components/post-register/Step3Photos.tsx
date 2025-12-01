@@ -14,7 +14,8 @@ interface Step3PhotosProps {
 }
 
 export default function Step3Photos({ 
-  formData, 
+  formData,
+  onInputChange,
   onPhotoAdd, 
   onPhotoRemove, 
   onNext, 
@@ -105,7 +106,7 @@ export default function Step3Photos({
         className="hidden"
       />
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-4 max-w-lg mx-auto">
         {displayPhotos.map((photo, index) => (
           <div key={index} className="relative aspect-square">
             <img

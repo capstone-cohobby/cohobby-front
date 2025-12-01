@@ -54,6 +54,17 @@ export default function ProductCard({ product }: ProductCardProps) {
     fetchCurrentUser();
   }, [product.id]);
 
+  const checkIfLiked = async () => {
+    try {
+      const likedPosts = await getMyLikes();
+      const isLikedPost = likedPosts.some(post => post.postId === Number(product.id));
+      setIsLiked(isLikedPost);
+    } catch (error) {
+      // 로그인하지 않았거나 에러 발생 시
+      setIsLiked(false);
+    }
+  };
+
   const isMyPost = currentUserId !== null && product.userId !== null && currentUserId === product.userId;
 
   const handleDelete = async (e: React.MouseEvent) => {
@@ -109,12 +120,12 @@ export default function ProductCard({ product }: ProductCardProps) {
 
   return (
     <Link href={`/product/${product.id}`}>
-      <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-4 shadow-sm border border-white/20 hover:shadow-lg transition-all duration-300 cursor-pointer">
-        <div className="relative mb-3">
+      <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-4 md:p-5 shadow-sm border border-white/20 hover:shadow-lg transition-all duration-300 cursor-pointer">
+        <div className="relative mb-3 md:mb-4 bg-gray-100 rounded-2xl overflow-hidden flex items-center justify-center h-40 md:h-52">
           <img
             src={product.image}
             alt={product.title}
-            className="w-full h-40 object-cover object-top rounded-2xl"
+            className="w-full h-full object-contain"
           />
           
           {product.available && (
@@ -146,33 +157,33 @@ export default function ProductCard({ product }: ProductCardProps) {
           )}
         </div>
 
-        <div className="space-y-2">
-          <div className="flex items-center gap-1">
-            <div className="w-5 h-5 bg-gradient-to-r from-purple-400 to-purple-600 rounded-full flex items-center justify-center">
+        <div className="space-y-2 md:space-y-2.5">
+          <div className="flex items-center gap-1 md:gap-1.5">
+            <div className="w-5 h-5 md:w-6 md:h-6 bg-gradient-to-r from-purple-400 to-purple-600 rounded-full flex items-center justify-center">
               <i className="ri-user-fill text-white text-xs"></i>
             </div>
-            <span className="text-xs font-medium text-gray-700 truncate">{product.owner}</span>
+            <span className="text-xs md:text-sm font-medium text-gray-700 truncate">{product.owner}</span>
             {product.verified && (
-              <div className="w-4 h-4 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
+              <div className="w-4 h-4 md:w-5 md:h-5 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
                 <i className="ri-check-fill text-white text-xs"></i>
               </div>
             )}
           </div>
 
-          <h3 className="font-bold text-gray-800 text-sm leading-tight line-clamp-2">{product.title}</h3>
+          <h3 className="font-bold text-gray-800 text-sm md:text-base leading-tight line-clamp-2">{product.title}</h3>
 
           <div className="flex items-center gap-1">
-            <i className="ri-star-fill text-yellow-400 text-xs"></i>
-            <span className="text-xs font-medium text-gray-700">{product.rating}</span>
-            <span className="text-xs text-gray-500">({product.reviews})</span>
+            <i className="ri-star-fill text-yellow-400 text-xs md:text-sm"></i>
+            <span className="text-xs md:text-sm font-medium text-gray-700">{product.rating}</span>
+            <span className="text-xs md:text-sm text-gray-500">({product.reviews})</span>
           </div>
 
-          <div className="flex items-center gap-1 text-xs text-gray-500">
-            <i className="ri-map-pin-line text-xs"></i>
+          <div className="flex items-center gap-1 text-xs md:text-sm text-gray-500">
+            <i className="ri-map-pin-line"></i>
             <span className="truncate">{product.location}</span>
           </div>
 
-          <div className="text-sm font-bold bg-gradient-to-r from-purple-600 to-purple-700 bg-clip-text text-transparent pt-2">
+          <div className="text-sm md:text-base font-bold bg-gradient-to-r from-purple-600 to-purple-700 bg-clip-text text-transparent pt-2">
             {product.price}
           </div>
         </div>

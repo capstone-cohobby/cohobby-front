@@ -474,7 +474,7 @@ export default function Home() {
               <p className="text-gray-500 text-sm">로딩 중...</p>
             </div>
           ) : products.length > 0 ? (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4 lg:gap-6 w-full max-w-6xl xl:max-w-7xl mx-auto">
               {products.map((product) => (
                 <ProductCard key={product.id} product={product} />
               ))}

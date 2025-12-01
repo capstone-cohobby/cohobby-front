@@ -401,6 +401,53 @@ export async function getMyPosts() {
   return response.result;
 }
 
+// 찜 생성
+export async function createLike(postId: number) {
+  const response = await apiFetch<{
+    isSuccess: boolean;
+    code: string;
+    message: string;
+    result: {
+      likeId: number;
+      postId: number;
+      message: string;
+    };
+  }>(`/posts/${postId}/likes`, {
+    method: 'POST'
+  });
+  return response.result;
+}
+
+// 찜 취소
+export async function deleteLike(postId: number) {
+  const response = await apiFetch<{
+    isSuccess: boolean;
+    code: string;
+    message: string;
+    result: {
+      postId: number;
+      message: string;
+    };
+  }>(`/posts/${postId}/likes`, {
+    method: 'DELETE'
+  });
+  return response.result;
+}
+
+// 내가 찜한 게시글 목록 조회
+export async function getMyLikes(categoryId?: number) {
+  const url = categoryId 
+    ? `/users/my-likes?categoryId=${categoryId}`
+    : '/users/my-likes';
+  const response = await apiFetch<{
+    isSuccess: boolean;
+    code: string;
+    message: string;
+    result: GetPostResponse[];
+  }>(url);
+  return response.result;
+}
+
 // 게시물 이미지 업로드
 export async function uploadPostImages(postId: number, images: File[]) {
   const formData = new FormData();
