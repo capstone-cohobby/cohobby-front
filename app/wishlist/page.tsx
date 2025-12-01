@@ -1,110 +1,83 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '../../components/Header';
 import BottomNavigation from '../../components/BottomNavigation';
 import ProductCard from '../../components/ProductCard';
+import { getMyLikes, GetPostResponse } from '../../lib/api';
 
 export default function WishlistPage() {
   const router = useRouter();
-  
-  const wishlistProducts = [
-    {
-      id: '17',
-      title: 'DJI Mini 3 Pro 드론',
-      owner: '드론파일럿',
-      verified: true,
-      rating: 4.9,
-      reviews: 21,
-      location: '송파구 잠실동',
-      time: '보통 1시간 이내',
-      price: '18,000원/일',
-      image: 'https://readdy.ai/api/search-image?query=DJI%20Mini%203%20Pro%20drone%20quadcopter%20with%20camera%20on%20clean%20white%20background%2C%20professional%20aerial%20photography%20equipment&width=300&height=240&seq=drone1&orientation=landscape',
-      available: true
-    },
-    {
-      id: '15',
-      title: 'Yamaha 디지털 피아노',
-      owner: '피아노선생님',
-      verified: true,
-      rating: 4.8,
-      reviews: 16,
-      location: '서초구 반포동',
-      time: '보통 2시간 이내',
-      price: '12,000원/일',
-      image: 'https://readdy.ai/api/search-image?query=Yamaha%20digital%20piano%20keyboard%20electronic%20musical%20instrument%20with%20keys%20on%20clean%20white%20background%2C%20modern%20music%20equipment&width=300&height=240&seq=keyboard1&orientation=landscape',
-      available: true
-    },
-    {
-      id: '9',
-      title: 'Canon EOS R5 미러리스',
-      owner: '김포토',
-      verified: true,
-      rating: 4.8,
-      reviews: 24,
-      location: '강남구 역삼동',
-      time: '보통 1시간 이내',
-      price: '25,000원/일',
-      image: 'https://readdy.ai/api/search-image?query=Canon%20EOS%20R5%20mirrorless%20camera%20professional%20photography%20equipment%20with%20lens%20on%20clean%20white%20background%2C%20product%20photography%20style&width=300&height=240&seq=camera1&orientation=landscape',
-      available: true
-    },
-    {
-      id: '18',
-      title: 'PlayStation 5',
-      owner: '콘솔게이머',
-      verified: true,
-      rating: 4.8,
-      reviews: 26,
-      location: '마포구 홍대동',
-      time: '보통 1시간 이내',
-      price: '15,000원/일',
-      image: 'https://readdy.ai/api/search-image?query=PlayStation%205%20console%20with%20controller%20modern%20white%20gaming%20system%20on%20clean%20white%20background%2C%20next%20generation%20gaming%20device&width=300&height=240&seq=ps5_1&orientation=landscape',
-      available: true
-    },
-    {
-      id: '14',
-      title: '테니스 라켓 세트',
-      owner: '테니스왕',
-      verified: true,
-      rating: 4.7,
-      reviews: 22,
-      location: '강남구 청담동',
-      time: '보통 1시간 이내',
-      price: '8,000원/일',
-      image: 'https://readdy.ai/api/search-image?query=Professional%20tennis%20racket%20set%20with%20tennis%20balls%20on%20clean%20white%20background%2C%20sports%20equipment%20for%20tennis%20game&width=300&height=240&seq=tennis1&orientation=landscape',
-      available: true
-    },
-    {
-      id: '16',
-      title: '등산 배낭 60L',
-      owner: '산악인',
-      verified: true,
-      rating: 4.6,
-      reviews: 19,
-      location: '노원구 상계동',
-      time: '보통 1시간 이내',
-      price: '6,000원/일',
-      image: 'https://readdy.ai/api/search-image?query=Large%20hiking%20backpack%2060L%20outdoor%20camping%20equipment%20with%20straps%20on%20clean%20white%20background%2C%20mountain%20climbing%20gear&width=300&height=240&seq=backpack1&orientation=landscape',
-      available: true
-    }
-  ];
-
   const [selectedCategory, setSelectedCategory] = useState('전체');
+  const [wishlistProducts, setWishlistProducts] = useState<Array<{
+    id: string;
+    title: string;
+    owner: string;
+    verified: boolean;
+    rating: number;
+    reviews: number;
+    location: string;
+    time: string;
+    price: string;
+    image: string;
+    available: boolean;
+    userId?: number | null;
+  }>>([]);
+  const [loading, setLoading] = useState(true);
+  
+  // 카테고리 이름 -> ID 매핑
+  const categoryNameToId: Record<string, number | undefined> = {
+    '스포츠': 1,
+    '악기': 2,
+    '액티비티': 3,
+    '촬영': 4,
+    '게임': 5,
+    '관람': 6,
+    '기타': 7
+  };
   
   const categories = ['전체', '촬영', '게임', '스포츠', '악기', '액티비티'];
 
-  const filteredProducts = selectedCategory === '전체' 
-    ? wishlistProducts 
-    : wishlistProducts.filter(product => {
-        if (selectedCategory === '촬영') return ['17', '9'].includes(product.id);
-        if (selectedCategory === '게임') return ['18'].includes(product.id);
-        if (selectedCategory === '스포츠') return ['14', '16'].includes(product.id);
-        if (selectedCategory === '악기') return ['15'].includes(product.id);
-        if (selectedCategory === '액티비티') return ['16'].includes(product.id);
-        return true;
-      });
+  useEffect(() => {
+    const fetchWishlist = async () => {
+      try {
+        setLoading(true);
+        const categoryId = selectedCategory === '전체' 
+          ? undefined 
+          : categoryNameToId[selectedCategory];
+        const posts = await getMyLikes(categoryId);
+        
+        // GetPostResponse를 ProductCard 형식으로 변환
+        const products = posts.map((post: GetPostResponse) => ({
+          id: String(post.postId),
+          title: post.goods,
+          owner: post.userNickname || '익명',
+          verified: true, // TODO: 실제 인증 상태 확인 필요
+          rating: 4.5, // TODO: 실제 평점 가져오기
+          reviews: 0, // TODO: 실제 리뷰 수 가져오기
+          location: '서울', // TODO: 실제 위치 가져오기
+          time: '보통 1시간 이내',
+          price: post.dailyPrice ? `${post.dailyPrice.toLocaleString()}원/일` : '가격 문의',
+          image: post.imageUrl || '/placeholder-image.jpg',
+          available: true, // TODO: 실제 대여 가능 상태 확인
+          userId: post.userId
+        }));
+        
+        setWishlistProducts(products);
+      } catch (error) {
+        console.error('찜한 게시글 조회 실패:', error);
+        setWishlistProducts([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchWishlist();
+  }, [selectedCategory]);
+
+  const filteredProducts = wishlistProducts;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-green-50">
@@ -145,7 +118,14 @@ export default function WishlistPage() {
 
         {/* 상품 목록 */}
         <div className="px-4">
-          {filteredProducts.length > 0 ? (
+          {loading ? (
+            <div className="text-center py-16">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i className="ri-loader-4-line text-gray-400 text-2xl animate-spin"></i>
+              </div>
+              <p className="text-gray-500 text-sm">로딩 중...</p>
+            </div>
+          ) : filteredProducts.length > 0 ? (
             <div className="grid grid-cols-2 gap-4">
               {filteredProducts.map((product) => (
                 <ProductCard key={product.id} product={product} />
