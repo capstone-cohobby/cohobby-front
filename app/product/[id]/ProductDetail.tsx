@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import Header from '../../../components/Header';
 import BottomNavigation from '../../../components/BottomNavigation';
-import { getPostDetail, GetPostDetailResponse, createChatRoom, getCurrentUser } from '../../../lib/api';
+import { getPostDetail, GetPostDetailResponse, createChatRoom, getCurrentUser, getPostEstimate, PostEstimateResponse } from '../../../lib/api';
 import { connectWebSocket, getStompClient } from '../../../lib/websocket';
 
 interface ProductDetailProps {
@@ -47,6 +47,10 @@ export default function ProductDetail({ productId }: ProductDetailProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [showAiReport, setShowAiReport] = useState(false);
+  const [aiEstimate, setAiEstimate] = useState<PostEstimateResponse | null>(null);
+  const [isLoadingEstimate, setIsLoadingEstimate] = useState(false);
+  const [estimateError, setEstimateError] = useState<string | null>(null);
 
   // 현재 사용자 정보 가져오기
   useEffect(() => {
@@ -137,6 +141,31 @@ export default function ProductDetail({ productId }: ProductDetailProps) {
 
     if (productId) {
       fetchProduct();
+    }
+  }, [productId]);
+
+  // AI 추정 정보 가져오기
+  useEffect(() => {
+    const fetchEstimate = async () => {
+      try {
+        setIsLoadingEstimate(true);
+        setEstimateError(null);
+        console.log('AI 추정 정보 조회 시작:', productId);
+        const estimate = await getPostEstimate(Number(productId));
+        console.log('AI 추정 정보 조회 성공:', estimate);
+        setAiEstimate(estimate);
+      } catch (err: any) {
+        console.error('AI 추정 정보 조회 실패:', err);
+        const errorMessage = err?.message || 'AI 리포트를 불러올 수 없습니다.';
+        setEstimateError(errorMessage);
+        setAiEstimate(null);
+      } finally {
+        setIsLoadingEstimate(false);
+      }
+    };
+
+    if (productId) {
+      fetchEstimate();
     }
   }, [productId]);
 
@@ -582,7 +611,7 @@ export default function ProductDetail({ productId }: ProductDetailProps) {
           </div>
 
           {/* 주의사항 */}
-          <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-4 border border-white/20 mb-24">
+          <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-4 border border-white/20 mb-6">
             <h3 className="font-bold text-gray-800 mb-3">주의사항 및 보증금 규칙</h3>
             <div className="text-gray-600 text-sm leading-relaxed">
               {showFullDescription ? (
@@ -612,6 +641,261 @@ export default function ProductDetail({ productId }: ProductDetailProps) {
                 </div>
               )}
             </div>
+          </div>
+
+          {/* AI 리포트 섹션 */}
+          <div 
+            className="relative mb-24"
+            onMouseEnter={() => setShowAiReport(true)}
+            onMouseLeave={() => setShowAiReport(false)}
+          >
+            <div 
+              className="flex items-center justify-center gap-2 bg-gradient-to-r from-purple-500/10 to-blue-500/10 rounded-2xl p-4 border border-purple-200/50 cursor-pointer hover:from-purple-500/20 hover:to-blue-500/20 transition-all duration-300"
+            >
+              <div className="flex items-center gap-2">
+                <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center shadow-lg">
+                  <i className="ri-robot-line text-white text-lg"></i>
+                </div>
+                <div className="text-left">
+                  <div className="text-sm font-bold text-gray-800">AI 가격 리포트</div>
+                  <div className="text-xs text-gray-500">마우스를 올려보세요</div>
+                </div>
+              </div>
+              <i className="ri-arrow-right-s-line text-purple-500 text-xl"></i>
+            </div>
+
+            {/* AI 리포트 팝업 */}
+            {showAiReport && (
+              <div 
+                className="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-2xl p-5 shadow-2xl border border-gray-200 z-50 animate-fadeIn max-h-[80vh] overflow-y-auto"
+                onMouseEnter={() => setShowAiReport(true)}
+                onMouseLeave={() => setShowAiReport(false)}
+              >
+                {isLoadingEstimate ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+                    <span className="ml-3 text-sm text-gray-600">AI 리포트 분석 중...</span>
+                  </div>
+                ) : estimateError ? (
+                  <div className="text-center py-8">
+                    <i className="ri-error-warning-line text-red-400 text-3xl mb-2"></i>
+                    <p className="text-sm text-gray-600 mb-2">AI 리포트를 불러올 수 없습니다.</p>
+                    <p className="text-xs text-gray-500 mb-4">{estimateError}</p>
+                    <button
+                      onClick={async () => {
+                        try {
+                          setIsLoadingEstimate(true);
+                          setEstimateError(null);
+                          const estimate = await getPostEstimate(Number(productId));
+                          setAiEstimate(estimate);
+                        } catch (err: any) {
+                          setEstimateError(err?.message || '재시도 실패');
+                        } finally {
+                          setIsLoadingEstimate(false);
+                        }
+                      }}
+                      className="px-4 py-2 bg-purple-500 text-white rounded-lg text-sm hover:bg-purple-600 transition-colors"
+                    >
+                      다시 시도
+                    </button>
+                  </div>
+                ) : aiEstimate ? (
+                  <>
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center">
+                          <i className="ri-robot-line text-white text-sm"></i>
+                        </div>
+                        <h4 className="font-bold text-gray-800">AI 가격 분석 리포트</h4>
+                      </div>
+                      <div className="px-2 py-1 bg-green-100 rounded-full">
+                        <span className="text-xs font-medium text-green-700">
+                          신뢰도 {Math.round((aiEstimate.confidence || 0) * 100)}%
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      {/* AI 추천 가격 범위 */}
+                      <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-4">
+                        <h5 className="font-semibold text-gray-800 mb-3 text-sm">AI 추천 가격 범위</h5>
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-xs text-gray-600">최저 가격</span>
+                            <span className="text-sm font-bold text-blue-600">
+                              {aiEstimate.suggestedLowPrice?.toLocaleString()}원/일
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-xs text-gray-600">추천 가격</span>
+                            <span className="text-sm font-bold text-purple-600">
+                              {aiEstimate.suggestedPointPrice?.toLocaleString()}원/일
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-xs text-gray-600">최고 가격</span>
+                            <span className="text-sm font-bold text-green-600">
+                              {aiEstimate.suggestedHighPrice?.toLocaleString()}원/일
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center pt-2 border-t border-purple-200">
+                            <span className="text-xs text-gray-600">현재 설정 가격</span>
+                            <span className="text-sm font-bold text-gray-800">{product.dailyPrice}</span>
+                          </div>
+                          {postDetail?.dailyPrice && aiEstimate.suggestedPointPrice && (
+                            <div className="pt-2 border-t border-purple-200">
+                              <div className="text-xs text-gray-600 leading-relaxed">
+                                {postDetail.dailyPrice >= aiEstimate.suggestedLowPrice && postDetail.dailyPrice <= aiEstimate.suggestedHighPrice ? (
+                                  <span className="text-green-600">
+                                    ✓ 현재 가격이 AI 추천 범위 내에 있습니다. 적정한 가격으로 설정되어 있습니다.
+                                  </span>
+                                ) : postDetail.dailyPrice < aiEstimate.suggestedLowPrice ? (
+                                  <span className="text-orange-600">
+                                    ⚠ 현재 가격이 AI 추천 최저가보다 낮습니다. 빠른 대여를 기대할 수 있지만 수익성이 낮을 수 있습니다.
+                                  </span>
+                                ) : (
+                                  <span className="text-red-600">
+                                    ⚠ 현재 가격이 AI 추천 최고가보다 높습니다. 대여 경쟁력이 낮을 수 있습니다.
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* 가격 추천 근거 */}
+                      {aiEstimate.priceReason && (
+                        <div className="bg-blue-50 rounded-xl p-4">
+                          <h5 className="font-semibold text-gray-800 mb-2 text-sm">가격 추천 근거</h5>
+                          <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">
+                            {aiEstimate.priceReason}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* 보증금 추천 */}
+                      <div className="bg-yellow-50 rounded-xl p-4">
+                        <h5 className="font-semibold text-gray-800 mb-3 text-sm">보증금 추천</h5>
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-xs text-gray-600">AI 추천 보증금</span>
+                            <span className="text-sm font-bold text-yellow-600">
+                              {aiEstimate.suggestedDeposit?.toLocaleString()}원
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-xs text-gray-600">현재 설정 보증금</span>
+                            <span className="text-sm font-bold text-gray-800">{product.deposit}</span>
+                          </div>
+                          {aiEstimate.depositReason && (
+                            <div className="pt-2 border-t border-yellow-200">
+                              <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-wrap">
+                                {aiEstimate.depositReason}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* 참고 증거 */}
+                      {aiEstimate.evidence && aiEstimate.evidence.length > 0 && (
+                        <div className="bg-gray-50 rounded-xl p-4">
+                          <h5 className="font-semibold text-gray-800 mb-3 text-sm">참고 증거</h5>
+                          <div className="space-y-2">
+                            {aiEstimate.evidence.map((evidence, index) => (
+                              <div key={index} className="flex items-start gap-2 text-xs">
+                                <i className="ri-link text-blue-500 mt-0.5"></i>
+                                <div className="flex-1">
+                                  <div className="text-gray-700 font-medium">{evidence.type}</div>
+                                  {evidence.url && (
+                                    <a 
+                                      href={evidence.url} 
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      className="text-blue-600 hover:underline break-all"
+                                    >
+                                      {evidence.url}
+                                    </a>
+                                  )}
+                                  {evidence.price && (
+                                    <div className="text-gray-600">참고 가격: {evidence.price.toLocaleString()}원</div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* AI 판단 및 규칙 근거 */}
+                      {aiEstimate.ruleReason && (
+                        <div className="bg-purple-50 rounded-xl p-4">
+                          <h5 className="font-semibold text-gray-800 mb-2 text-sm">대여 규칙 추천 근거</h5>
+                          <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">
+                            {aiEstimate.ruleReason}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* AI 판단 */}
+                      {aiEstimate.decision && (
+                        <div className={`rounded-xl p-4 ${
+                          aiEstimate.decision.toLowerCase().includes('uncertain') 
+                            ? 'bg-yellow-50 border border-yellow-200' 
+                            : 'bg-green-50'
+                        }`}>
+                          <h5 className="font-semibold text-gray-800 mb-2 text-sm">AI 최종 판단</h5>
+                          <div className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">
+                            {aiEstimate.decision.toLowerCase().includes('uncertain') ? (
+                              <div className="space-y-2">
+                                <p className="font-medium text-yellow-800">
+                                  ⚠ 가격 측정의 유동성이 높은 품목입니다
+                                </p>
+                                <p>
+                                  해당 품목은 품목명이 정확하지 않거나 대여가 활발하지 않은 품목으로, 
+                                  실제 시장 가격이 아닌 ROI(투자 대비 수익) 기반으로 계산되었습니다. 
+                                  따라서 가격 측정의 유동성이 많이 허용되며, 
+                                  제시된 가격 범위는 참고용으로만 활용하시기 바랍니다.
+                                </p>
+                                <p className="text-gray-600 italic">
+                                  원본 판단: {aiEstimate.decision}
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                <p className="font-medium text-green-800">
+                                  ✓ 시장 가격을 반영한 분석입니다
+                                </p>
+                                <p>
+                                  해당 품목은 실제 시장 가격 데이터를 기반으로 분석되었으며, 
+                                  유사 품목의 대여 가격과 시장 트렌드를 종합적으로 고려하여 
+                                  추천 가격 범위를 제시했습니다.
+                                </p>
+                                <p className="text-gray-700">
+                                  {aiEstimate.decision}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="text-center pt-2">
+                        <span className="text-xs text-gray-500">
+                          * AI 분석은 참고용이며, 실제 가격 결정은 판매자 재량입니다.
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-8">
+                    <i className="ri-information-line text-gray-400 text-3xl mb-2"></i>
+                    <p className="text-sm text-gray-500">AI 리포트 정보를 불러올 수 없습니다.</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
