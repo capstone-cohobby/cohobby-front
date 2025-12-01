@@ -472,3 +472,28 @@ export async function getLikedPosts() {
   return response.result;
 }
 
+// 취미 통계 조회
+export interface HobbyStatsResponse {
+  totalExperience: number;
+  totalRentedItems: number;
+  contributedHobbiesCount: number;
+  hobbies: Array<{
+    hobbyId: number;
+    name: string;
+    categoryName: string | null;
+    score: number;
+    progress: number;
+    contributed: boolean;
+  }>;
+}
+
+export async function getMyHobbyStats() {
+  const response = await apiFetch<{
+    isSuccess: boolean;
+    code: string;
+    message: string;
+    result: HobbyStatsResponse;
+  }>('/hobbies/my-stats');
+  return response.result;
+}
+
