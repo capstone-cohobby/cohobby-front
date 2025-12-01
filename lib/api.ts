@@ -13,16 +13,37 @@ export async function apiFetch<T>(
     ...options?.headers,
   };
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+  const url = `${API_BASE_URL}${endpoint}`;
+  console.log(`[apiFetch] 요청: ${options?.method || 'GET'} ${url}`);
+
+  const response = await fetch(url, {
     ...options,
     headers,
   });
 
   if (!response.ok) {
-    throw new Error(`API Error: ${response.statusText}`);
+    // 응답 본문 읽기 시도
+    let errorMessage = `API Error: ${response.status} ${response.statusText}`;
+    try {
+      const errorBody = await response.text();
+      if (errorBody) {
+        try {
+          const errorJson = JSON.parse(errorBody);
+          errorMessage = errorJson.message || errorJson.error || errorMessage;
+        } catch {
+          errorMessage = errorBody || errorMessage;
+        }
+      }
+    } catch {
+      // 응답 본문 읽기 실패 시 기본 메시지 사용
+    }
+    
+    console.error(`[apiFetch] 에러: ${url} - ${errorMessage}`);
+    throw new Error(errorMessage);
   }
 
-  return response.json();
+  const data = await response.json();
+  return data;
 }
 
 // 채팅방 목록 가져오기
@@ -450,28 +471,71 @@ export async function getMyLikes(categoryId?: number) {
 
 // 게시물 이미지 업로드
 export async function uploadPostImages(postId: number, images: File[]) {
+  if (!images || images.length === 0) {
+    throw new Error('업로드할 이미지가 없습니다.');
+  }
+
   const formData = new FormData();
   images.forEach((image) => {
     formData.append('images', image);
   });
 
   const authHeader = getAuthHeader();
-  const headers: HeadersInit = {
-    ...(authHeader && { Authorization: authHeader }),
-  };
-
-  const response = await fetch(`${API_BASE_URL}/posts/${postId}/image`, {
-    method: 'POST',
-    headers,
-    body: formData,
-  });
-
-  if (!response.ok) {
-    throw new Error(`API Error: ${response.statusText}`);
+  if (!authHeader) {
+    throw new Error('인증 토큰이 없습니다. 로그인이 필요합니다.');
   }
 
-  const result = await response.json();
-  return result.result || result;
+  const headers: HeadersInit = {
+    // FormData를 사용할 때는 Content-Type을 설정하지 않아야 브라우저가 자동으로 boundary를 설정합니다
+    Authorization: authHeader,
+  };
+
+  const url = `${API_BASE_URL}/posts/${postId}/image`;
+  
+  console.log('이미지 업로드 요청:', {
+    url,
+    postId,
+    imageCount: images.length,
+    apiBaseUrl: API_BASE_URL
+  });
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    // 응답 본문을 먼저 읽어서 에러 메시지에 포함
+    const responseText = await response.text();
+    let errorMessage = `이미지 업로드 실패 (${response.status}): ${response.statusText}`;
+
+    if (!response.ok) {
+      try {
+        const errorData = JSON.parse(responseText);
+        errorMessage = errorData.message || errorData.error || errorMessage;
+        console.error('이미지 업로드 에러 응답:', errorData);
+      } catch (e) {
+        // JSON 파싱 실패 시 원본 텍스트 사용
+        if (responseText) {
+          errorMessage = `${errorMessage}\n서버 응답: ${responseText}`;
+        }
+        console.error('이미지 업로드 에러 (텍스트):', responseText);
+      }
+      throw new Error(errorMessage);
+    }
+
+    const result = JSON.parse(responseText);
+    console.log('이미지 업로드 성공:', result);
+    return result.result || result;
+  } catch (error: any) {
+    // 네트워크 에러 등
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      console.error('네트워크 에러:', error);
+      throw new Error(`서버에 연결할 수 없습니다. 서버 주소를 확인해주세요: ${API_BASE_URL}`);
+    }
+    throw error;
+  }
 }
 
 // 좋아요 토글
@@ -542,5 +606,60 @@ export async function getMyHobbyStats() {
     result: HobbyStatsResponse;
   }>('/hobbies/my-stats');
   return response.result;
+}
+
+// 게시물 AI 추정 정보 조회 (대여자용)
+export interface PostEstimateResponse {
+  suggestedLowPrice: number;
+  suggestedPointPrice: number;
+  suggestedHighPrice: number;
+  suggestedDeposit: number;
+  priceReason: string;
+  depositReason: string;
+  ruleReason: string;
+  evidence: Array<{
+    url: string;
+    type: string;
+    price: number;
+  }>;
+  confidence: number;
+  decision: string;
+  referenceUrl?: string;
+  referenceType?: string;
+  referencePrice?: number;
+  caution?: string;
+}
+
+export async function getPostEstimate(postId: number) {
+  try {
+    // 게시글 등록 시 POST로 사용한 경로와 동일한 패턴으로 GET 시도
+    // POST: /posts/{postId}/ai-estimate
+    // GET도 같은 경로일 가능성이 높음
+    const endpoint = `/posts/ai-estimate/${postId}`;
+    console.log(`[getPostEstimate] 호출 시작: postId=${postId}, URL=${endpoint}`);
+    
+    const response = await apiFetch<{
+      isSuccess: boolean;
+      code: string;
+      message: string;
+      result: PostEstimateResponse;
+    }>(endpoint, {
+      method: 'GET'
+    });
+    
+    if (!response.isSuccess) {
+      throw new Error(response.message || 'AI 추정 정보를 가져올 수 없습니다.');
+    }
+    
+    console.log('[getPostEstimate] 성공:', response.result);
+    return response.result;
+  } catch (error: any) {
+    console.error(`[getPostEstimate] 에러:`, error);
+    // 더 자세한 에러 메시지 제공
+    if (error.message) {
+      throw error;
+    }
+    throw new Error(`AI 추정 정보 조회 실패: ${error?.toString() || '알 수 없는 오류'}`);
+  }
 }
 
