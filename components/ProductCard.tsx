@@ -4,7 +4,7 @@
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getCurrentUser, deletePost, createLike, deleteLike, getMyLikes } from '../lib/api';
+import { getCurrentUser, deletePost, toggleLike, checkLikeStatus } from '../lib/api';
 
 interface Product {
   id: string;
@@ -37,15 +37,22 @@ export default function ProductCard({ product }: ProductCardProps) {
       try {
         const user = await getCurrentUser();
         setCurrentUserId(user.id);
-        // 찜한 게시물 목록 확인
-        checkIfLiked();
+        // 좋아요 상태 확인
+        try {
+          const liked = await checkLikeStatus(Number(product.id));
+          setIsLiked(liked);
+        } catch (error) {
+          // 좋아요 상태 확인 실패 (로그인하지 않았거나 에러)
+          setIsLiked(false);
+        }
       } catch (error) {
         // 로그인하지 않은 경우
         setCurrentUserId(null);
+        setIsLiked(false);
       }
     };
     fetchCurrentUser();
-  }, []);
+  }, [product.id]);
 
   const checkIfLiked = async () => {
     try {
@@ -81,29 +88,31 @@ export default function ProductCard({ product }: ProductCardProps) {
     }
   };
 
-  const handleLikeToggle = async (e: React.MouseEvent) => {
+  const handleLikeClick = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
-    if (!currentUserId) {
+    if (currentUserId === null) {
       alert('로그인이 필요합니다.');
       return;
     }
 
-    if (isTogglingLike) return;
+    if (isTogglingLike) {
+      return; // 이미 처리 중이면 무시
+    }
 
     try {
       setIsTogglingLike(true);
-      if (isLiked) {
-        await deleteLike(Number(product.id));
-        setIsLiked(false);
-      } else {
-        await createLike(Number(product.id));
-        setIsLiked(true);
-      }
+      const newLikeStatus = await toggleLike(Number(product.id));
+      console.log('좋아요 상태 변경:', newLikeStatus, '이전 상태:', isLiked);
+      setIsLiked(newLikeStatus);
+      // 상태 업데이트 확인
+      setTimeout(() => {
+        console.log('업데이트된 좋아요 상태:', newLikeStatus);
+      }, 100);
     } catch (error) {
-      console.error('찜 처리 실패:', error);
-      alert('찜 처리에 실패했습니다.');
+      console.error('좋아요 처리 실패:', error);
+      alert('좋아요 처리에 실패했습니다.');
     } finally {
       setIsTogglingLike(false);
     }
@@ -137,13 +146,13 @@ export default function ProductCard({ product }: ProductCardProps) {
             </button>
           ) : (
             <button
-              onClick={handleLikeToggle}
+              onClick={handleLikeClick}
               disabled={isTogglingLike}
-              className={`absolute top-2 right-2 w-8 h-8 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white transition-all duration-300 shadow-lg cursor-pointer disabled:opacity-50 ${
-                isLiked ? 'bg-red-50' : ''
-              }`}
+              className="absolute top-2 right-2 w-8 h-8 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white transition-all duration-300 shadow-lg cursor-pointer disabled:opacity-50"
             >
-              <i className={`${isLiked ? 'ri-heart-fill text-red-500' : 'ri-heart-line text-gray-600'} text-sm transition-colors duration-300`}></i>
+              <i className={`${isLiked ? 'ri-heart-fill' : 'ri-heart-line'} text-sm transition-colors duration-300 ${
+                isLiked ? 'text-red-500' : 'text-gray-600'
+              } hover:text-red-500`}></i>
             </button>
           )}
         </div>

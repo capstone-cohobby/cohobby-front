@@ -474,3 +474,73 @@ export async function uploadPostImages(postId: number, images: File[]) {
   return result.result || result;
 }
 
+// 좋아요 토글
+export async function toggleLike(postId: number) {
+  const response = await apiFetch<{
+    isSuccess: boolean;
+    code: string;
+    message: string;
+    result: {
+      isLiked?: boolean;
+      liked?: boolean;
+    };
+  }>(`/likes/${postId}`, {
+    method: 'POST'
+  });
+  console.log('toggleLike API 응답:', response);
+  // Jackson이 isLiked() 메서드를 liked로 직렬화할 수도 있으므로 둘 다 확인
+  const isLiked = response.result.isLiked ?? response.result.liked ?? false;
+  return isLiked;
+}
+
+// 좋아요 여부 확인
+export async function checkLikeStatus(postId: number) {
+  const response = await apiFetch<{
+    isSuccess: boolean;
+    code: string;
+    message: string;
+    result: {
+      isLiked?: boolean;
+      liked?: boolean;
+    };
+  }>(`/likes/${postId}`);
+  // Jackson이 isLiked() 메서드를 liked로 직렬화할 수도 있으므로 둘 다 확인
+  return response.result.isLiked ?? response.result.liked ?? false;
+}
+
+// 좋아요한 게시물 목록 조회
+export async function getLikedPosts() {
+  const response = await apiFetch<{
+    isSuccess: boolean;
+    code: string;
+    message: string;
+    result: GetPostResponse[];
+  }>('/likes/my');
+  return response.result;
+}
+
+// 취미 통계 조회
+export interface HobbyStatsResponse {
+  totalExperience: number;
+  totalRentedItems: number;
+  contributedHobbiesCount: number;
+  hobbies: Array<{
+    hobbyId: number;
+    name: string;
+    categoryName: string | null;
+    score: number;
+    progress: number;
+    contributed: boolean;
+  }>;
+}
+
+export async function getMyHobbyStats() {
+  const response = await apiFetch<{
+    isSuccess: boolean;
+    code: string;
+    message: string;
+    result: HobbyStatsResponse;
+  }>('/hobbies/my-stats');
+  return response.result;
+}
+
