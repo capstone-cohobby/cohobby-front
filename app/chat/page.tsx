@@ -7,6 +7,7 @@ import Header from '../../components/Header';
 import BottomNavigation from '../../components/BottomNavigation';
 import { getChatRooms } from '../../lib/api';
 import { DEFAULT_PROFILE_IMAGE } from '../../lib/constants';
+import { isAuthenticated } from '../../lib/auth';
 
 interface ChatRoom {
   id: number;
@@ -47,6 +48,14 @@ export default function ChatPage() {
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // 로그인 체크
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      router.push('/login');
+      return;
+    }
+  }, [router]);
 
   useEffect(() => {
     const fetchChatRooms = async () => {

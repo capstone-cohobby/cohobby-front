@@ -1,14 +1,25 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Header from '../../components/Header';
 import BottomNavigation from '../../components/BottomNavigation';
 import { getMyHobbyStats, HobbyStatsResponse } from '../../lib/api';
+import { isAuthenticated } from '../../lib/auth';
 
 export default function HobbyPage() {
+  const router = useRouter();
   const [selectedCategory, setSelectedCategory] = useState('전체');
   const [stats, setStats] = useState<HobbyStatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // 로그인 체크
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      router.push('/login');
+      return;
+    }
+  }, [router]);
 
   const categories = ['전체', '스포츠', '악기', '액티비티', '촬영', '게임', '관람'];
 

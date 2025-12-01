@@ -74,32 +74,6 @@ export default function WishlistPage() {
   }, []);
 
   const [selectedCategory, setSelectedCategory] = useState('전체');
-  const [wishlistProducts, setWishlistProducts] = useState<Array<{
-    id: string;
-    title: string;
-    owner: string;
-    verified: boolean;
-    rating: number;
-    reviews: number;
-    location: string;
-    time: string;
-    price: string;
-    image: string;
-    available: boolean;
-    userId?: number | null;
-  }>>([]);
-  const [loading, setLoading] = useState(true);
-  
-  // 카테고리 이름 -> ID 매핑
-  const categoryNameToId: Record<string, number | undefined> = {
-    '스포츠': 1,
-    '악기': 2,
-    '액티비티': 3,
-    '촬영': 4,
-    '게임': 5,
-    '관람': 6,
-    '기타': 7
-  };
   
   const categories = ['전체', '촬영', '게임', '스포츠', '악기', '액티비티'];
 
