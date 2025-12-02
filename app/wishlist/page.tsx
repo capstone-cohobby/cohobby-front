@@ -42,7 +42,7 @@ export default function WishlistPage() {
       title: post.goods || '',
       owner: post.userNickname || '알 수 없음',
       verified: false, // TODO: 백엔드에 verified 필드 추가 필요
-      rating: 0, // TODO: Review API에서 평균 평점 계산 필요
+      rating: 4.5, // TODO: Review API에서 평균 평점 계산 필요 (임시로 4.5 하드코딩)
       reviews: 0, // TODO: Review API에서 리뷰 개수 계산 필요
       location: '', // TODO: User 엔티티에 location 필드 추가 필요
       time: '보통 1시간 이내', // TODO: 계산 로직 필요

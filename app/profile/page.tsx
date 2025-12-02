@@ -168,7 +168,7 @@ export default function ProfilePage() {
     contributionPoints: profileData?.score || 0,
     rentalCount: 0, // TODO: 실제 대여 횟수 API 연동 필요
     registeredItems: 0, // TODO: 실제 등록 상품 수 API 연동 필요
-    rating: 0, // TODO: 실제 평점 API 연동 필요
+    rating: 4.5, // TODO: 실제 평점 API 연동 필요 (임시로 4.5 하드코딩)
     completedDeals: 0 // TODO: 실제 완료 거래 수 API 연동 필요
   };
 
