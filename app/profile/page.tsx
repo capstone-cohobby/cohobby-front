@@ -381,12 +381,6 @@ export default function ProfilePage() {
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-bold text-purple-600">{price}</span>
                         <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleWriteReview(item.id)}
-                            className="px-3 py-1 bg-purple-500 text-white rounded-full text-xs font-medium hover:bg-purple-600 transition-colors whitespace-nowrap"
-                          >
-                            리뷰 작성하기
-                          </button>
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(item.status)}`}>
                             {getStatusText(item.status)}
                           </span>
