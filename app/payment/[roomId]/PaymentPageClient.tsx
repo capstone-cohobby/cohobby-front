@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Script from 'next/script';
 import Header from '../../../components/Header';
 import BottomNavigation from '../../../components/BottomNavigation';
-import { getRentByRoomId, createPaymentIntent, getCurrentUser } from '../../../lib/api';
+import { getRentByRoomId, createPaymentIntent, getCurrentUser, getUserCard } from '../../../lib/api';
 
 interface PaymentPageClientProps {
   params: Promise<{ roomId: string }>;
@@ -33,6 +33,8 @@ export default function PaymentPageClient({ params }: PaymentPageClientProps) {
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tossPaymentsLoaded, setTossPaymentsLoaded] = useState(false);
+  const [hasCard, setHasCard] = useState<boolean | null>(null);
+  const [isCheckingCard, setIsCheckingCard] = useState(true);
 
   // params에서 roomId 추출
   useEffect(() => {
@@ -63,11 +65,40 @@ export default function PaymentPageClient({ params }: PaymentPageClientProps) {
     fetchRentInfo();
   }, [roomId]);
 
+  // 카드 등록 여부 확인
+  useEffect(() => {
+    const checkUserCard = async () => {
+      try {
+        setIsCheckingCard(true);
+        await getUserCard();
+        setHasCard(true);
+      } catch (error: any) {
+        if (error.message?.includes('404') || error.message?.includes('등록된 카드가 없습니다')) {
+          setHasCard(false);
+        } else {
+          console.error('카드 정보 확인 실패:', error);
+          // 에러가 발생해도 카드가 없다고 간주
+          setHasCard(false);
+        }
+      } finally {
+        setIsCheckingCard(false);
+      }
+    };
+
+    checkUserCard();
+  }, []);
+
   const handlePayment = async () => {
     if (!rentInfo || !tossPaymentsLoaded) {
       if (!tossPaymentsLoaded) {
         setError('결제 시스템을 초기화하는데 시간이 걸리고 있습니다. 잠시 후 다시 시도해주세요.');
       }
+      return;
+    }
+
+    // 카드 등록 여부 확인
+    if (hasCard === false) {
+      setError('대여료 결제를 위해 카드 등록이 필요합니다. 마이페이지에서 카드를 등록해주세요.');
       return;
     }
 
@@ -90,7 +121,7 @@ export default function PaymentPageClient({ params }: PaymentPageClientProps) {
         throw new Error('결제 금액이 설정되지 않았습니다. 채팅방에서 날짜를 설정한 후 다시 시도해주세요.');
       }
 
-      // 결제 의도 생성
+      // 결제 의도 생성 (카드 등록 여부는 백엔드에서도 확인)
       const paymentIntent = await createPaymentIntent(rentInfo.id, rentInfo.totalPrice);
 
       // 프론트엔드 URL로 성공/실패 URL 설정
@@ -137,13 +168,18 @@ export default function PaymentPageClient({ params }: PaymentPageClientProps) {
         }
         throw tossError;
       }
-    } catch (err: any) {
-      console.error('결제 처리 중 오류 발생:', err);
-      setError(err.message || '결제 처리 중 오류가 발생했습니다.');
-    } finally {
-      setProcessing(false);
-    }
-  };
+      } catch (err: any) {
+        console.error('결제 처리 중 오류 발생:', err);
+        const errorMessage = err.message || '결제 처리 중 오류가 발생했습니다.';
+        // 카드 등록 관련 오류인 경우 특별 처리
+        if (errorMessage.includes('카드 등록') || errorMessage.includes('등록된 카드가 없습니다')) {
+          setHasCard(false);
+        }
+        setError(errorMessage);
+      } finally {
+        setProcessing(false);
+      }
+    };
 
   const formatDate = (dateStr: string | null): string => {
     if (!dateStr) return '미정';
@@ -172,7 +208,7 @@ export default function PaymentPageClient({ params }: PaymentPageClientProps) {
     return startDateOnly.getTime() === todayOnly.getTime();
   };
 
-  const canMakePayment = isRentStartDateToday();
+  const canMakePayment = isRentStartDateToday() && hasCard !== false && !isCheckingCard;
 
   if (loading) {
     return (
@@ -275,22 +311,51 @@ export default function PaymentPageClient({ params }: PaymentPageClientProps) {
             </div>
           </div>
 
-          {/* 결제 방법 안내 */}
-          <div className="bg-yellow-50/80 backdrop-blur-sm rounded-2xl p-4 shadow-sm border border-yellow-100 mb-6">
-            <div className="flex items-start gap-2">
-              <i className="ri-information-line text-yellow-600 text-lg flex-shrink-0 mt-0.5"></i>
-              <div className="text-xs text-yellow-700 leading-relaxed">
-                <p className="mb-1">• 카드 결제로 진행됩니다. (테스트 환경)</p>
-                <p className="mb-1">• 결제 완료 후 채팅방에서 확인할 수 있습니다.</p>
-                <p>• 결제 취소는 채팅방에서 상대방과 협의 후 진행해주세요.</p>
+          {/* 카드 미등록 안내 */}
+          {hasCard === false && (
+            <div className="bg-red-50/80 backdrop-blur-sm rounded-2xl p-4 shadow-sm border border-red-200 mb-6">
+              <div className="flex items-start gap-2">
+                <i className="ri-alert-line text-red-600 text-lg flex-shrink-0 mt-0.5"></i>
+                <div className="text-sm text-red-700 leading-relaxed">
+                  <p className="mb-2 font-semibold">카드 등록이 필요합니다</p>
+                  <p className="mb-2">대여료 결제를 위해 카드 등록이 필요합니다. 마이페이지에서 카드를 등록해주세요.</p>
+                  <button
+                    onClick={() => router.push('/profile?openCardModal=true')}
+                    className="mt-2 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+                  >
+                    마이페이지로 이동
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
+          )}
+
+          {/* 결제 방법 안내 */}
+          {hasCard !== false && (
+            <div className="bg-yellow-50/80 backdrop-blur-sm rounded-2xl p-4 shadow-sm border border-yellow-100 mb-6">
+              <div className="flex items-start gap-2">
+                <i className="ri-information-line text-yellow-600 text-lg flex-shrink-0 mt-0.5"></i>
+                <div className="text-xs text-yellow-700 leading-relaxed">
+                  <p className="mb-1">• 카드 결제로 진행됩니다. (테스트 환경)</p>
+                  <p className="mb-1">• 결제 완료 후 채팅방에서 확인할 수 있습니다.</p>
+                  <p>• 결제 취소는 채팅방에서 상대방과 협의 후 진행해주세요.</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* 에러 메시지 */}
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
-              <p className="text-sm text-red-600">{error}</p>
+              <p className="text-sm text-red-600 mb-2">{error}</p>
+              {error.includes('카드 등록') && (
+                <button
+                  onClick={() => router.push('/profile?openCardModal=true')}
+                  className="px-3 py-2 bg-red-600 text-white rounded-lg text-xs font-medium hover:bg-red-700 transition-colors"
+                >
+                  카드 등록하러 가기
+                </button>
+              )}
             </div>
           )}
 
@@ -302,10 +367,14 @@ export default function PaymentPageClient({ params }: PaymentPageClientProps) {
           >
             {!tossPaymentsLoaded 
               ? '결제 시스템 로딩 중...' 
+              : isCheckingCard
+              ? '카드 정보 확인 중...'
               : processing 
               ? '결제 처리 중...' 
               : !canMakePayment
-              ? '대여 시작 날이 아닙니다'
+              ? hasCard === false
+                ? '카드 등록이 필요합니다'
+                : '대여 시작 날이 아닙니다'
               : `${formatPrice(rentInfo.totalPrice)}원 결제하기`}
           </button>
         </div>

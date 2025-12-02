@@ -1,12 +1,13 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import Script from 'next/script';
 import Header from '../../components/Header';
 import BottomNavigation from '../../components/BottomNavigation';
-import { getMyRentalHistory, getMyPosts, getLikedPosts, MyRentalHistoryResponse, GetPostResponse } from '../../lib/api';
+import { getMyRentalHistory, getMyPosts, getLikedPosts, MyRentalHistoryResponse, GetPostResponse, getUserCard, registerCard, deleteUserCard, UserCardResponse, CardRegisterRequest } from '../../lib/api';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
@@ -50,6 +51,10 @@ export default function ProfilePage() {
   const [isLoadingRentals, setIsLoadingRentals] = useState(false);
   const [isLoadingPosts, setIsLoadingPosts] = useState(false);
   const [isLoadingLikedProducts, setIsLoadingLikedProducts] = useState(false);
+  const [userCard, setUserCard] = useState<UserCardResponse | null>(null);
+  const [isLoadingCard, setIsLoadingCard] = useState(false);
+  const [showCardRegisterModal, setShowCardRegisterModal] = useState(false);
+  const cardRegisterHandledRef = useRef<string | null>(null);
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -305,8 +310,138 @@ export default function ProfilePage() {
     { id: '등록상품', icon: 'ri-box-line', label: '내 등록 상품' },
     { id: '찜한상품', icon: 'ri-heart-line', label: '찜한 상품' },
     { id: '리뷰관리', icon: 'ri-star-line', label: '리뷰 관리' },
+    { id: '카드관리', icon: 'ri-bank-card-line', label: '카드 관리' },
     { id: '고객센터', icon: 'ri-customer-service-line', label: '고객센터' }
   ];
+
+  // 카드 정보 조회
+  useEffect(() => {
+    const fetchUserCard = async () => {
+      if (selectedTab !== '카드관리') return;
+      
+      setIsLoadingCard(true);
+      try {
+        const card = await getUserCard();
+        setUserCard(card);
+      } catch (error: any) {
+        if (error.message?.includes('404') || error.message?.includes('등록된 카드가 없습니다')) {
+          setUserCard(null);
+        } else {
+          console.error('카드 정보 조회 실패:', error);
+        }
+      } finally {
+        setIsLoadingCard(false);
+      }
+    };
+
+    fetchUserCard();
+  }, [selectedTab]);
+
+  const searchParams = useSearchParams();
+
+  // 외부에서 카드 등록 모달을 열도록 요청한 경우 처리
+  useEffect(() => {
+    const openCardModal = searchParams.get('openCardModal');
+    if (openCardModal === 'true') {
+      setSelectedTab('카드관리');
+      setShowCardRegisterModal(true);
+      router.replace('/profile');
+    }
+  }, [searchParams, router]);
+
+  // 카드 등록 성공/실패 처리
+  useEffect(() => {
+    const cardRegisterStatus = searchParams.get('cardRegister');
+    const authKey = searchParams.get('authKey');
+
+    if (!cardRegisterStatus) {
+      cardRegisterHandledRef.current = null;
+      return;
+    }
+
+    const fingerprint = `${cardRegisterStatus}-${authKey ?? ''}`;
+    if (cardRegisterHandledRef.current === fingerprint) {
+      return;
+    }
+    cardRegisterHandledRef.current = fingerprint;
+
+    console.log('카드 등록 리다이렉트 파라미터:', {
+      cardRegisterStatus,
+      authKey,
+      allParams: Object.fromEntries(searchParams.entries())
+    });
+
+    const finalize = () => {
+      router.replace('/profile');
+    };
+
+    if (cardRegisterStatus === 'success') {
+      if (authKey) {
+        (async () => {
+          try {
+            const request: CardRegisterRequest = { authKey };
+            const registeredCard = await registerCard(request);
+            setUserCard(registeredCard);
+            alert('카드가 성공적으로 등록되었습니다.');
+          } catch (error: any) {
+            console.error('카드 등록 실패:', error);
+            alert('카드 등록에 실패했습니다: ' + (error.message || '알 수 없는 오류'));
+          } finally {
+            finalize();
+          }
+        })();
+      } else {
+        console.warn('authKey가 URL 파라미터에 없습니다. 카드 정보를 다시 확인합니다.');
+        (async () => {
+          try {
+            const card = await getUserCard();
+            if (card) {
+              setUserCard(card);
+              alert('카드가 성공적으로 등록되었습니다.');
+            } else {
+              alert('카드 인증은 완료되었지만, 등록 처리 중 오류가 발생했습니다. 다시 시도해주세요.');
+            }
+          } catch (error) {
+            console.error('카드 정보 조회 실패:', error);
+            alert('카드 인증은 완료되었지만, 등록 처리 중 오류가 발생했습니다. 다시 시도해주세요.');
+          } finally {
+            finalize();
+          }
+        })();
+      }
+    } else if (cardRegisterStatus === 'fail') {
+      alert('카드 등록에 실패했습니다.');
+      finalize();
+    }
+  }, [searchParams, router]);
+
+  // 카드 등록 핸들러
+  const handleCardRegister = async (authKey: string) => {
+    try {
+      const request: CardRegisterRequest = { authKey };
+      const registeredCard = await registerCard(request);
+      setUserCard(registeredCard);
+      setShowCardRegisterModal(false);
+      alert('카드가 성공적으로 등록되었습니다.');
+    } catch (error: any) {
+      console.error('카드 등록 실패:', error);
+      alert('카드 등록에 실패했습니다: ' + (error.message || '알 수 없는 오류'));
+    }
+  };
+
+  // 카드 삭제 핸들러
+  const handleCardDelete = async () => {
+    if (!confirm('등록된 카드를 삭제하시겠습니까?')) return;
+    
+    try {
+      await deleteUserCard();
+      setUserCard(null);
+      alert('카드가 삭제되었습니다.');
+    } catch (error: any) {
+      console.error('카드 삭제 실패:', error);
+      alert('카드 삭제에 실패했습니다: ' + (error.message || '알 수 없는 오류'));
+    }
+  };
 
   const handleWriteReview = (itemId: number) => {
     router.push(`/review/write?itemId=${itemId}`);
@@ -604,6 +739,82 @@ export default function ProfilePage() {
           </div>
         );
 
+      case '카드관리':
+        if (isLoadingCard) {
+          return (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i className="ri-loader-4-line text-gray-400 text-2xl animate-spin"></i>
+              </div>
+              <p className="text-gray-500 text-sm">로딩 중...</p>
+            </div>
+          );
+        }
+        return (
+          <div className="space-y-4">
+            {userCard ? (
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-sm border border-white/20">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold text-gray-800 text-lg">등록된 카드</h3>
+                  <button
+                    onClick={handleCardDelete}
+                    disabled={!userCard.deletable}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                      userCard.deletable
+                        ? 'bg-red-100 text-red-600 hover:bg-red-200'
+                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    }`}
+                  >
+                    삭제
+                  </button>
+                </div>
+                <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">카드사</p>
+                      <p className="text-base font-medium text-gray-800">{userCard.cardCompany || '알 수 없음'}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-gray-500 mb-1">카드 타입</p>
+                      <p className="text-base font-medium text-gray-800">{userCard.cardType || '알 수 없음'}</p>
+                    </div>
+                  </div>
+                  <div className="mt-4">
+                    <p className="text-sm text-gray-500 mb-1">카드 번호</p>
+                    <p className="text-base font-medium tracking-wider text-gray-800">{userCard.cardNumber || '카드 번호 없음'}</p>
+                  </div>
+                  {!userCard.deletable && (
+                    <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-xs text-yellow-800 leading-relaxed">
+                      진행 중인 대여가 있어 카드를 삭제할 수 없습니다. 대여가 종료된 후 다시 시도해주세요.
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-sm border border-white/20 text-center">
+                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <i className="ri-bank-card-line text-gray-400 text-2xl"></i>
+                </div>
+                <h3 className="font-bold text-gray-800 text-lg mb-2">등록된 카드가 없습니다</h3>
+                <p className="text-sm text-gray-500 mb-6">대여료 자동결제를 위해 카드를 등록해주세요</p>
+                <button
+                  onClick={() => setShowCardRegisterModal(true)}
+                  className="w-full py-3 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-2xl font-medium hover:from-purple-600 hover:to-purple-700 transition-all"
+                >
+                  <i className="ri-add-line mr-2"></i>
+                  카드 등록하기
+                </button>
+              </div>
+            )}
+            {showCardRegisterModal && (
+              <CardRegisterModal
+                onClose={() => setShowCardRegisterModal(false)}
+                userId={profileData?.id || null}
+              />
+            )}
+          </div>
+        );
+
       case '고객센터':
         return (
           <div className="space-y-4">
@@ -744,5 +955,142 @@ export default function ProfilePage() {
 
       <BottomNavigation />
     </div>
+  );
+}
+
+// 카드 등록 모달 컴포넌트
+function CardRegisterModal({ onClose, userId }: { onClose: () => void; userId: number | null }) {
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [tossPaymentsLoaded, setTossPaymentsLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleCardRegister = async () => {
+    if (!tossPaymentsLoaded) {
+      setError('결제 시스템을 초기화하는데 시간이 걸리고 있습니다. 잠시 후 다시 시도해주세요.');
+      return;
+    }
+
+    if (!userId) {
+      setError('사용자 정보를 불러올 수 없습니다. 페이지를 새로고침해주세요.');
+      return;
+    }
+
+    try {
+      setIsRegistering(true);
+      setError(null);
+
+      // Toss Payments 클라이언트 키
+      const clientKey = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY;
+      
+      if (!clientKey) {
+        throw new Error('Toss Payments 클라이언트 키가 설정되지 않았습니다.');
+      }
+
+      if (typeof window === 'undefined' || !(window as any).TossPayments) {
+        throw new Error('결제 시스템을 초기화하는데 실패했습니다. 페이지를 새로고침해주세요.');
+      }
+
+      const tossPayments = (window as any).TossPayments(clientKey);
+
+      // 빌링키 발급을 위한 카드 인증 요청
+      // requestBillingAuth는 리다이렉트 방식으로 작동합니다.
+      // successUrl은 절대 URL이어야 하며, http:// 또는 https://로 시작해야 합니다.
+      // 토스페이먼츠 관리자 콘솔에 등록된 도메인만 사용할 수 있습니다.
+      const baseUrl = window.location.origin;
+      
+      // customerKey는 백엔드와 동일하게 사용자 ID 기반으로 생성
+      // 백엔드에서도 "customer_" + user.getId() 형식을 사용하므로 일치시켜야 함
+      const customerKey = `customer_${userId}`;
+      
+      // successUrl과 failUrl을 단순하게 설정 (쿼리 파라미터 포함)
+      // 토스페이먼츠가 리다이렉트할 때 쿼리 파라미터를 추가할 수 있습니다.
+      const successUrl = `${baseUrl}/profile?cardRegister=success`;
+      const failUrl = `${baseUrl}/profile?cardRegister=fail`;
+      
+      console.log('카드 인증 요청:', { successUrl, failUrl, baseUrl, customerKey, userId });
+      
+      try {
+        await tossPayments.requestBillingAuth('카드', {
+          customerKey: customerKey, // 백엔드와 동일한 형식 사용
+          successUrl: successUrl,
+          failUrl: failUrl,
+        });
+      } catch (urlError: any) {
+        // successUrl 오류인 경우 더 자세한 정보 제공
+        if (urlError.message && urlError.message.includes('successUrl')) {
+          throw new Error(`successUrl 오류: ${successUrl}\n토스페이먼츠 관리자 콘솔에서 이 URL을 등록했는지 확인하세요.`);
+        }
+        throw urlError;
+      }
+
+      // requestBillingAuth는 리다이렉트를 수행하므로 여기까지 도달하지 않습니다.
+      // 성공 시 successUrl로 리다이렉트되고, useEffect에서 authKey를 처리합니다.
+      // 모달은 리다이렉트로 인해 자동으로 닫힙니다.
+    } catch (err: any) {
+      console.error('카드 등록 오류:', err);
+      setError(err.message || '카드 등록에 실패했습니다.');
+      setIsRegistering(false);
+    }
+    // finally 블록을 제거했습니다. 리다이렉트가 발생하면 이 함수가 완료되지 않기 때문입니다.
+  };
+
+  return (
+    <>
+      <Script
+        src="https://js.tosspayments.com/v1"
+        onLoad={() => setTossPaymentsLoaded(true)}
+        onError={() => setError('결제 시스템을 로드하는데 실패했습니다.')}
+      />
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-2xl p-6 w-full max-w-md">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold text-gray-800 text-lg">카드 등록</h3>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <i className="ri-close-line text-2xl"></i>
+            </button>
+          </div>
+          
+          <div className="space-y-4">
+            <div className="bg-blue-50 rounded-lg p-4">
+              <p className="text-sm text-blue-800">
+                <i className="ri-information-line mr-2"></i>
+                카드 정보는 토스페이먼츠를 통해 안전하게 처리되며, 저장되지 않습니다.
+              </p>
+            </div>
+
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <p className="text-sm text-red-600">{error}</p>
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={handleCardRegister}
+                disabled={isRegistering || !tossPaymentsLoaded}
+                className="flex-1 py-3 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg font-medium hover:from-purple-600 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {!tossPaymentsLoaded 
+                  ? '로딩 중...' 
+                  : isRegistering 
+                  ? '인증 중...' 
+                  : '카드 인증하기'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }
