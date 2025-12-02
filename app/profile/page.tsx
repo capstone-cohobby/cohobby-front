@@ -241,13 +241,13 @@ export default function ProfilePage() {
   const getStatusText = (status: string) => {
     switch (status) {
       case 'CREATED':
-        return '생성됨';
+        return '대여 요청 중';
       case 'CONFIRMED':
-        return '확정됨';
+        return '대여 확정됨';
       case 'ONGOING':
         return '대여중';
       case 'COMPLETED':
-        return '완료';
+        return '대여 완료';
       case 'CANCELLED':
         return '취소됨';
       case 'DISPUTED':
