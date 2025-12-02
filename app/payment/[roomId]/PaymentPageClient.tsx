@@ -71,6 +71,12 @@ export default function PaymentPageClient({ params }: PaymentPageClientProps) {
       return;
     }
 
+    // 대여 시작일이 오늘이 아니면 결제 불가
+    if (!isRentStartDateToday()) {
+      setError('대여 시작 날이 아닙니다.');
+      return;
+    }
+
     try {
       setProcessing(true);
       setError(null);
@@ -151,6 +157,22 @@ export default function PaymentPageClient({ params }: PaymentPageClientProps) {
   const formatPrice = (price: number): string => {
     return new Intl.NumberFormat('ko-KR').format(price);
   };
+
+  // 대여 시작일이 오늘인지 확인 (UTC+9 기준, 날짜만 비교)
+  const isRentStartDateToday = (): boolean => {
+    if (!rentInfo?.startAt) return false;
+    
+    const startDate = new Date(rentInfo.startAt);
+    const today = new Date();
+    
+    // 한국 시간대(UTC+9) 기준으로 날짜만 비교
+    const startDateOnly = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+    const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    
+    return startDateOnly.getTime() === todayOnly.getTime();
+  };
+
+  const canMakePayment = isRentStartDateToday();
 
   if (loading) {
     return (
@@ -275,10 +297,16 @@ export default function PaymentPageClient({ params }: PaymentPageClientProps) {
           {/* 결제하기 버튼 */}
           <button
             onClick={handlePayment}
-            disabled={processing || !rentInfo || !tossPaymentsLoaded}
+            disabled={processing || !rentInfo || !tossPaymentsLoaded || !canMakePayment}
             className="w-full py-4 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-2xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {!tossPaymentsLoaded ? '결제 시스템 로딩 중...' : processing ? '결제 처리 중...' : `${formatPrice(rentInfo.totalPrice)}원 결제하기`}
+            {!tossPaymentsLoaded 
+              ? '결제 시스템 로딩 중...' 
+              : processing 
+              ? '결제 처리 중...' 
+              : !canMakePayment
+              ? '대여 시작 날이 아닙니다'
+              : `${formatPrice(rentInfo.totalPrice)}원 결제하기`}
           </button>
         </div>
       </div>

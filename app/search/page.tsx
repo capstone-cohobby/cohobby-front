@@ -50,7 +50,7 @@ function SearchContent() {
       title: post.goods || '',
       owner: post.userNickname || '알 수 없음',
       verified: false,
-      rating: 0,
+      rating: 4.5, // 임시로 4.5 하드코딩
       reviews: 0,
       location: '',
       time: '보통 1시간 이내',

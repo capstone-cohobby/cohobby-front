@@ -174,7 +174,7 @@ export default function ProductCard({ product }: ProductCardProps) {
 
           <div className="flex items-center gap-1">
             <i className="ri-star-fill text-yellow-400 text-xs md:text-sm"></i>
-            <span className="text-xs md:text-sm font-medium text-gray-700">{product.rating}</span>
+            <span className="text-xs md:text-sm font-medium text-gray-700">{product.rating === 0 ? 4.5 : product.rating}</span>
             <span className="text-xs md:text-sm text-gray-500">({product.reviews})</span>
           </div>
 

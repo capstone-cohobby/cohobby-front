@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Header from '../../components/Header';
 import BottomNavigation from '../../components/BottomNavigation';
-import { getMyRentalHistory, getMyPosts, MyRentalHistoryResponse, GetPostResponse } from '../../lib/api';
+import { getMyRentalHistory, getMyPosts, getLikedPosts, MyRentalHistoryResponse, GetPostResponse } from '../../lib/api';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
@@ -31,8 +31,25 @@ export default function ProfilePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [rentalHistory, setRentalHistory] = useState<MyRentalHistoryResponse[]>([]);
   const [myPosts, setMyPosts] = useState<GetPostResponse[]>([]);
+  const [likedProducts, setLikedProducts] = useState<Array<{
+    id: string;
+    title: string;
+    owner: string;
+    verified: boolean;
+    rating: number;
+    reviews: number;
+    location: string;
+    time: string;
+    price: string;
+    image: string;
+    available: boolean;
+    category: string;
+    keywords: string[];
+    userId?: number | null;
+  }>>([]);
   const [isLoadingRentals, setIsLoadingRentals] = useState(false);
   const [isLoadingPosts, setIsLoadingPosts] = useState(false);
+  const [isLoadingLikedProducts, setIsLoadingLikedProducts] = useState(false);
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -143,6 +160,54 @@ export default function ProfilePage() {
     fetchMyPosts();
   }, [selectedTab]);
 
+  // 백엔드 응답을 프론트엔드 형식으로 변환
+  const mapPostToProduct = (post: GetPostResponse) => {
+    const today = new Date();
+    const availableFrom = post.availableFrom ? new Date(post.availableFrom) : null;
+    const availableUntil = post.availableUntil ? new Date(post.availableUntil) : null;
+    const isAvailable = availableFrom && availableUntil 
+      ? today >= availableFrom && today <= availableUntil 
+      : true;
+
+    return {
+      id: String(post.postId),
+      title: post.goods || '',
+      owner: post.userNickname || '알 수 없음',
+      verified: false, // TODO: 백엔드에 verified 필드 추가 필요
+      rating: 4.5, // TODO: Review API에서 평균 평점 계산 필요 (임시로 4.5 하드코딩)
+      reviews: 0, // TODO: Review API에서 리뷰 개수 계산 필요
+      location: '', // TODO: User 엔티티에 location 필드 추가 필요
+      time: '보통 1시간 이내', // TODO: 계산 로직 필요
+      price: post.dailyPrice ? `${post.dailyPrice.toLocaleString()}원/일` : '가격 문의',
+      image: post.imageUrl || 'https://via.placeholder.com/300x400',
+      available: isAvailable,
+      category: post.categoryName || '',
+      keywords: [], // TODO: 키워드 필드 추가 필요
+      userId: post.userId
+    };
+  };
+
+  // 찜한 상품 조회
+  useEffect(() => {
+    const fetchLikedProducts = async () => {
+      if (selectedTab !== '찜한상품') return;
+      
+      setIsLoadingLikedProducts(true);
+      try {
+        const posts = await getLikedPosts();
+        const mappedProducts = posts.map(mapPostToProduct);
+        setLikedProducts(mappedProducts);
+      } catch (error) {
+        console.error('찜한 상품 조회 실패:', error);
+        setLikedProducts([]);
+      } finally {
+        setIsLoadingLikedProducts(false);
+      }
+    };
+
+    fetchLikedProducts();
+  }, [selectedTab]);
+
   // 사용자 레벨 계산 (score 기반)
   const getUserLevel = (score: number) => {
     if (score >= 2000) return '플래티넘';
@@ -168,7 +233,7 @@ export default function ProfilePage() {
     contributionPoints: profileData?.score || 0,
     rentalCount: 0, // TODO: 실제 대여 횟수 API 연동 필요
     registeredItems: 0, // TODO: 실제 등록 상품 수 API 연동 필요
-    rating: 0, // TODO: 실제 평점 API 연동 필요
+    rating: 4.5, // TODO: 실제 평점 API 연동 필요 (임시로 4.5 하드코딩)
     completedDeals: 0 // TODO: 실제 완료 거래 수 API 연동 필요
   };
 
@@ -176,13 +241,13 @@ export default function ProfilePage() {
   const getStatusText = (status: string) => {
     switch (status) {
       case 'CREATED':
-        return '생성됨';
+        return '대여 요청 중';
       case 'CONFIRMED':
-        return '확정됨';
+        return '대여 확정됨';
       case 'ONGOING':
         return '대여중';
       case 'COMPLETED':
-        return '완료';
+        return '대여 완료';
       case 'CANCELLED':
         return '취소됨';
       case 'DISPUTED':
@@ -213,26 +278,6 @@ export default function ProfilePage() {
   };
 
 
-  const wishlistItems = [
-    {
-      id: 1,
-      title: 'DJI Mini 3 Pro 드론',
-      owner: '드론파일럿',
-      price: '20,000원/일',
-      rating: 4.9,
-      location: '강남구',
-      image: 'https://readdy.ai/api/search-image?query=DJI%20Mini%203%20Pro%20drone%20quadcopter%20with%20camera%20on%20clean%20white%20background%2C%20professional%20aerial%20photography%20equipment&width=80&height=80&seq=drone1&orientation=squarish'
-    },
-    {
-      id: 2,
-      title: 'Yamaha 디지털 피아노',
-      owner: '피아노선생',
-      price: '15,000원/일',
-      rating: 4.8,
-      location: '서초구',
-      image: 'https://readdy.ai/api/search-image?query=Yamaha%20digital%20piano%20keyboard%20black%20color%20on%20clean%20white%20background%2C%20musical%20instrument%20product%20photography&width=80&height=80&seq=piano1&orientation=squarish'
-    }
-  ];
 
   const reviews = [
     {
@@ -381,12 +426,6 @@ export default function ProfilePage() {
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-bold text-purple-600">{price}</span>
                         <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleWriteReview(item.id)}
-                            className="px-3 py-1 bg-purple-500 text-white rounded-full text-xs font-medium hover:bg-purple-600 transition-colors whitespace-nowrap"
-                          >
-                            리뷰 작성하기
-                          </button>
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(item.status)}`}>
                             {getStatusText(item.status)}
                           </span>
@@ -464,35 +503,63 @@ export default function ProfilePage() {
         );
 
       case '찜한상품':
+        if (isLoadingLikedProducts) {
+          return (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i className="ri-loader-4-line text-gray-400 text-2xl animate-spin"></i>
+              </div>
+              <p className="text-gray-500 text-sm">로딩 중...</p>
+            </div>
+          );
+        }
+        if (likedProducts.length === 0) {
+          return (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i className="ri-inbox-line text-gray-400 text-2xl"></i>
+              </div>
+              <p className="text-gray-500 text-sm">찜한 상품이 없습니다</p>
+            </div>
+          );
+        }
         return (
           <div className="space-y-4">
-            {wishlistItems.map((item) => (
-              <div key={item.id} className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 shadow-sm border border-white/20">
-                <div className="flex items-center gap-4">
-                  <img 
-                    src={item.image} 
-                    alt={item.title}
-                    className="w-16 h-16 rounded-xl object-cover"
-                  />
-                  <div className="flex-1">
-                    <h3 className="font-bold text-gray-800 text-sm mb-1">{item.title}</h3>
-                    <p className="text-xs text-gray-500 mb-1">대여자: {item.owner}</p>
-                    <p className="text-xs text-gray-500 mb-2">{item.location}</p>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-bold text-purple-600">{item.price}</span>
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-1">
-                          <i className="ri-star-fill text-yellow-400 text-xs"></i>
-                          <span className="text-xs text-gray-600">{item.rating}</span>
+            {likedProducts.map((item) => (
+              <Link key={item.id} href={`/product/${item.id}`}>
+                <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 shadow-sm border border-white/20 hover:shadow-md transition-all cursor-pointer">
+                  <div className="flex items-center gap-4">
+                    <img 
+                      src={item.image} 
+                      alt={item.title}
+                      className="w-16 h-16 rounded-xl object-cover"
+                    />
+                    <div className="flex-1">
+                      <h3 className="font-bold text-gray-800 text-sm mb-1">{item.title}</h3>
+                      <p className="text-xs text-gray-500 mb-1">대여자: {item.owner}</p>
+                      <p className="text-xs text-gray-500 mb-2">{item.location || '위치 정보 없음'}</p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-bold text-purple-600">{item.price}</span>
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1">
+                            <i className="ri-star-fill text-yellow-400 text-xs"></i>
+                            <span className="text-xs text-gray-600">{item.rating === 0 ? 4.5 : item.rating}</span>
+                          </div>
+                          <button 
+                            onClick={(e) => {
+                              e.preventDefault();
+                              router.push(`/product/${item.id}`);
+                            }}
+                            className="px-3 py-1 bg-purple-500 text-white rounded-full text-xs font-medium hover:bg-purple-600 transition-colors"
+                          >
+                            대여하기
+                          </button>
                         </div>
-                        <button className="px-3 py-1 bg-purple-500 text-white rounded-full text-xs font-medium hover:bg-purple-600 transition-colors">
-                          대여하기
-                        </button>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         );

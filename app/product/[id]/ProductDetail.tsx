@@ -112,7 +112,7 @@ export default function ProductDetail({ productId }: ProductDetailProps) {
           title: postDetail.goods || '',
           owner: postDetail.userNickname || '알 수 없음',
           verified: false, // TODO: 백엔드에 verified 필드 추가 필요
-          rating: 0, // TODO: Review API에서 평균 평점 계산 필요
+          rating: 4.5, // TODO: Review API에서 평균 평점 계산 필요 (임시로 4.5 하드코딩)
           reviews: 0, // TODO: Review API에서 리뷰 개수 계산 필요
           location: '', // TODO: User 엔티티에 location 필드 추가 필요
           time: '보통 1시간 이내', // TODO: 계산 로직 필요
@@ -555,7 +555,7 @@ export default function ProductDetail({ productId }: ProductDetailProps) {
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-1">
                   <i className="ri-star-fill text-yellow-400"></i>
-                  <span className="font-bold text-gray-800">{product.rating}</span>
+                  <span className="font-bold text-gray-800">{product.rating === 0 ? 4.5 : product.rating}</span>
                   <span className="text-gray-500">({product.reviews})</span>
                 </div>
                 <div className="flex items-center gap-1 text-gray-600">
