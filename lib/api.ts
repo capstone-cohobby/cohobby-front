@@ -42,8 +42,29 @@ export async function apiFetch<T>(
     throw new Error(errorMessage);
   }
 
-  const data = await response.json();
-  return data;
+  // 응답 본문이 있는지 확인 (Content-Length 헤더 또는 본문 확인)
+  const contentType = response.headers.get('content-type');
+  const contentLength = response.headers.get('content-length');
+  
+  // 본문이 없거나 빈 응답인 경우 (DELETE, 204 No Content 등)
+  if (contentLength === '0' || !contentType?.includes('application/json')) {
+    // 빈 응답인 경우 undefined 반환 (void 타입 처리)
+    return undefined as T;
+  }
+
+  // 본문이 있는 경우에만 JSON 파싱
+  const text = await response.text();
+  if (!text || text.trim() === '') {
+    return undefined as T;
+  }
+
+  try {
+    const data = JSON.parse(text);
+    return data;
+  } catch (e) {
+    // JSON 파싱 실패 시 빈 응답으로 처리
+    return undefined as T;
+  }
 }
 
 // 채팅방 목록 가져오기
@@ -661,5 +682,50 @@ export async function getPostEstimate(postId: number) {
     }
     throw new Error(`AI 추정 정보 조회 실패: ${error?.toString() || '알 수 없는 오류'}`);
   }
+}
+
+// 카드 등록 응답 타입
+export interface UserCardResponse {
+  cardId: number;
+  cardNumber: string;
+  cardCompany: string;
+  cardType: string;
+  deletable: boolean;
+}
+
+// 카드 등록 요청 타입
+export interface CardRegisterRequest {
+  authKey: string; // 토스페이먼츠 위젯으로 카드 인증 후 받은 authKey
+}
+
+// 카드 등록 응답 타입
+export interface CardRegisterResponse {
+  id: number;
+  userId: number;
+  billingKey: string;
+  cardCompany: string;
+  cardNumberMasked: string;
+  cardType: string;
+  isDefault: boolean;
+}
+
+// 카드 조회
+export async function getUserCard() {
+  return apiFetch<UserCardResponse>('/payments/cards');
+}
+
+// 카드 등록
+export async function registerCard(request: CardRegisterRequest) {
+  return apiFetch<CardRegisterResponse>('/payments/cards', {
+    method: 'POST',
+    body: JSON.stringify(request)
+  });
+}
+
+// 카드 삭제
+export async function deleteUserCard() {
+  return apiFetch<void>('/payments/cards', {
+    method: 'DELETE'
+  });
 }
 
