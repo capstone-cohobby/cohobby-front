@@ -143,6 +143,7 @@ export async function getCurrentUser() {
     birthYear: number | null;
     birthday: string | null;
     phoneNumber: string | null;
+    role: string | null;
     createdAt: string;
   }>('/auth/me');
 }

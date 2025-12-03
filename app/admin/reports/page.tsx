@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getAllReports, getReportsByStatus, approveReport, type ReportResponse } from '@/lib/api';
+import { useRouter } from 'next/navigation';
+import { getAllReports, getReportsByStatus, approveReport, getCurrentUser, type ReportResponse } from '@/lib/api';
+import { isAuthenticated } from '@/lib/auth';
 
 const REPORT_TYPES: Record<string, string> = {
   MINOR_DAMAGE: '경미파손',
@@ -17,14 +19,46 @@ const REPORT_TYPES: Record<string, string> = {
 const REPORT_STATUSES = ['OPEN', 'IN_PROGRESS', 'APPROVED', 'REJECTED', 'RESOLVED', 'CLOSED'];
 
 export default function AdminReportsPage() {
+  const router = useRouter();
   const [reports, setReports] = useState<ReportResponse[]>([]);
-  const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
+  const [selectedStatus, setSelectedStatus] = useState<string>('OPEN'); // 기본값을 OPEN으로 설정하여 접수된 신고만 표시
   const [isLoading, setIsLoading] = useState(false);
   const [processingId, setProcessingId] = useState<number | null>(null);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+
+  // 권한 체크
+  useEffect(() => {
+    const checkAdminAuth = async () => {
+      if (!isAuthenticated()) {
+        alert('로그인이 필요합니다.');
+        router.push('/login');
+        return;
+      }
+
+      try {
+        const user = await getCurrentUser();
+        // role 정보 확인 (백엔드에서 role 필드 추가됨)
+        if (!user.role || user.role !== 'ADMIN') {
+          alert('관리자 권한이 필요합니다.');
+          router.push('/login');
+          return;
+        }
+        setIsCheckingAuth(false);
+        loadReports();
+      } catch (error: any) {
+        alert('관리자 권한이 필요합니다.');
+        router.push('/login');
+      }
+    };
+
+    checkAdminAuth();
+  }, [router]);
 
   useEffect(() => {
-    loadReports();
-  }, [selectedStatus]);
+    if (!isCheckingAuth) {
+      loadReports();
+    }
+  }, [selectedStatus, isCheckingAuth]);
 
   const loadReports = async () => {
     setIsLoading(true);
@@ -60,10 +94,29 @@ export default function AdminReportsPage() {
     }
   };
 
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-gray-800 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">권한 확인 중...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-3xl font-bold mb-8">관리자 - 신고 관리</h1>
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold">관리자 - 신고 관리</h1>
+          <button
+            onClick={() => router.push('/')}
+            className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg text-sm font-medium transition-colors"
+          >
+            메인으로
+          </button>
+        </div>
 
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <div className="flex justify-between items-center mb-4">
