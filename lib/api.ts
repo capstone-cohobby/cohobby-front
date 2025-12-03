@@ -729,3 +729,98 @@ export async function deleteUserCard() {
   });
 }
 
+// 신고 관련 타입
+export interface ReportResponse {
+  id: number;
+  rentId: number;
+  userId: number;
+  title: string;
+  content: string;
+  type: string;
+  status: string;
+  imageUrl: string | null;
+  delayDays: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateReportRequest {
+  rentId: number;
+  type: string;
+  title: string;
+  content: string;
+  imageUrl?: string;
+  delayDays?: number;
+}
+
+// 신고 생성
+export async function createReport(request: CreateReportRequest) {
+  const response = await apiFetch<{
+    isSuccess: boolean;
+    code: string;
+    message: string;
+    result: ReportResponse;
+  }>('/reports', {
+    method: 'POST',
+    body: JSON.stringify(request)
+  });
+  return response.result;
+}
+
+// 신고 조회
+export async function getReport(reportId: number) {
+  const response = await apiFetch<{
+    isSuccess: boolean;
+    code: string;
+    message: string;
+    result: ReportResponse;
+  }>(`/reports/${reportId}`);
+  return response.result;
+}
+
+// 내 신고 목록 조회
+export async function getMyReports() {
+  const response = await apiFetch<{
+    isSuccess: boolean;
+    code: string;
+    message: string;
+    result: ReportResponse[];
+  }>('/reports/my');
+  return response.result;
+}
+
+// 관리자: 신고 승인/거부
+export async function approveReport(reportId: number, approved: boolean) {
+  const response = await apiFetch<{
+    isSuccess: boolean;
+    code: string;
+    message: string;
+    result: ReportResponse;
+  }>(`/admin/reports/${reportId}/approve?approved=${approved}`, {
+    method: 'POST'
+  });
+  return response.result;
+}
+
+// 관리자: 모든 신고 목록 조회
+export async function getAllReports() {
+  const response = await apiFetch<{
+    isSuccess: boolean;
+    code: string;
+    message: string;
+    result: ReportResponse[];
+  }>('/admin/reports');
+  return response.result;
+}
+
+// 관리자: 상태별 신고 목록 조회
+export async function getReportsByStatus(status: string) {
+  const response = await apiFetch<{
+    isSuccess: boolean;
+    code: string;
+    message: string;
+    result: ReportResponse[];
+  }>(`/admin/reports/status/${status}`);
+  return response.result;
+}
+

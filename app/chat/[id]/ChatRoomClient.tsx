@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import BottomNavigation from '../../../components/BottomNavigation';
 import { getChatMessages, getCurrentUser, getChatRooms, getUserProfile, getReadStatus, getPeerReadStatus, updateRentDates, updateRentDailyPrice, updateRentRule, getRentByRoomId } from '../../../lib/api';
+import ReportModal from '../../../components/ReportModal';
 import { connectWebSocket, disconnectWebSocket, getStompClient } from '../../../lib/websocket';
 import { DEFAULT_PROFILE_IMAGE } from '../../../lib/constants';
 import { Client } from '@stomp/stompjs';
@@ -25,6 +26,8 @@ interface Message {
 export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
   const router = useRouter();
   const [showReportModal, setShowReportModal] = useState(false);
+  const [rentId, setRentId] = useState<number | null>(null);
+  const [isOwner, setIsOwner] = useState(false);
   const [selectedReportReason, setSelectedReportReason] = useState('');
   const [reportDetails, setReportDetails] = useState('');
   const [showActionMenu, setShowActionMenu] = useState(false);
@@ -168,6 +171,9 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
               startAt: rent.startAt,
               duedate: rent.duedate
             });
+            setRentId(rent.id);
+            // owner인지 확인 (room.ownerId와 user.id 비교)
+            setIsOwner(user.id === room.ownerId);
           }
         } catch (err) {
           console.error('Rent 정보 가져오기 실패:', err);
@@ -407,19 +413,25 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
     }
   };
 
-  const reportReasons = [
-    '제품에 공지된 것 이상의 하자가 있음',
-    '반납 기한을 지키지 않음',
-    '비매너 채팅',
-    '반납 후 보증금 책정 이상의 하자가 있음'
-  ];
-
-  const handleReport = () => {
-    if (selectedReportReason && reportDetails.trim()) {
-      setShowReportModal(false);
-      setSelectedReportReason('');
-      setReportDetails('');
-      alert('신고가 접수되었습니다. 검토 후 조치하겠습니다.');
+  // 신고 유형 정의
+  const getReportTypes = () => {
+    if (isOwner) {
+      // 빌려준 사람(owner)이 빌려간 사람(borrower)에게 신고 - 보증금 자동결제 관련
+      return [
+        { value: 'MINOR_DAMAGE', label: '경미파손' },
+        { value: 'DAMAGE', label: '파손' },
+        { value: 'RETURN_DELAY', label: '반납 연체' },
+        { value: 'OTHER', label: '기타' },
+      ];
+    } else {
+      // 빌려간 사람(borrower)이 빌려준 사람(owner)에게 신고 - 양방향 신고
+      return [
+        { value: 'NOT_AS_DESCRIBED', label: '설명과 다름' },
+        { value: 'SCAM', label: '사기' },
+        { value: 'PROHIBITED_ITEM', label: '금지물품' },
+        { value: 'ABUSE', label: '욕설' },
+        { value: 'OTHER', label: '기타' },
+      ];
     }
   };
 
@@ -1197,77 +1209,18 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
       )}
 
       {/* 신고하기 모달 */}
-      {showReportModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-sm max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-gray-800">대여자 신고</h3>
-              <button
-                onClick={() => {
-                  setShowReportModal(false);
-                  setSelectedReportReason('');
-                  setReportDetails('');
-                }}
-                className="w-8 h-8 flex items-center justify-center"
-              >
-                <i className="ri-close-line text-gray-500 text-xl"></i>
-              </button>
-            </div>
-            
-            <p className="text-sm text-gray-600 mb-4">신고 사유를 선택해주세요:</p>
-            
-            <div className="space-y-3 mb-6">
-              {reportReasons.map((reason) => (
-                <label key={reason} className="flex items-start gap-3 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="reportReason"
-                    value={reason}
-                    checked={selectedReportReason === reason}
-                    onChange={(e) => setSelectedReportReason(e.target.value)}
-                    className="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0"
-                  />
-                  <span className="text-sm text-gray-700 leading-relaxed">{reason}</span>
-                </label>
-              ))}
-            </div>
-            
-            {/* 구체적인 사유 입력 */}
-            <div className="mb-6">
-              <p className="text-sm text-gray-600 mb-2">구체적인 사유를 적어주세요:</p>
-              <textarea
-                value={reportDetails}
-                onChange={(e) => setReportDetails(e.target.value)}
-                placeholder="신고 사유에 대한 자세한 내용을 입력해주세요..."
-                maxLength={500}
-                className="w-full h-24 p-3 border border-gray-200 rounded-2xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              />
-              <div className="flex justify-end mt-1">
-                <span className="text-xs text-gray-400">{reportDetails.length}/500</span>
-              </div>
-            </div>
-            
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setShowReportModal(false);
-                  setSelectedReportReason('');
-                  setReportDetails('');
-                }}
-                className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-2xl font-medium hover:bg-gray-200 transition-colors"
-              >
-                취소
-              </button>
-              <button
-                onClick={handleReport}
-                disabled={!selectedReportReason || !reportDetails.trim()}
-                className="flex-1 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-2xl font-medium hover:from-red-600 hover:to-red-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                신고하기
-              </button>
-            </div>
-          </div>
-        </div>
+      {showReportModal && rentId && (
+        <ReportModal
+          isOpen={showReportModal}
+          onClose={() => {
+            setShowReportModal(false);
+            setSelectedReportReason('');
+            setReportDetails('');
+          }}
+          rentId={rentId}
+          reportTypes={getReportTypes()}
+          isOwner={isOwner}
+        />
       )}
 
       <BottomNavigation />
