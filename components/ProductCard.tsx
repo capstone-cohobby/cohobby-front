@@ -117,13 +117,17 @@ export default function ProductCard({ product }: ProductCardProps) {
             className="w-full h-full object-contain"
           />
           
-          {product.available && (
-            <div className="absolute top-2 left-2">
+          <div className="absolute top-2 left-2">
+            {product.available ? (
               <span className="bg-gradient-to-r from-green-500 to-green-600 text-white text-xs px-2 py-1 rounded-full font-medium shadow-lg">
                 대여가능
               </span>
-            </div>
-          )}
+            ) : (
+              <span className="bg-gradient-to-r from-red-500 to-red-600 text-white text-xs px-2 py-1 rounded-full font-medium shadow-lg">
+                대여 불가
+              </span>
+            )}
+          </div>
           
           {isMyPost ? (
             <button

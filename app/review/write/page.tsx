@@ -14,26 +14,12 @@ function WriteReviewContent() {
   const [comment, setComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const itemIdParam = searchParams.get('itemId');
-  const itemId = itemIdParam ? parseInt(itemIdParam, 10) : null;
+  const rentIdParam = searchParams.get('rentId');
+  const rentId = rentIdParam ? parseInt(rentIdParam, 10) : null;
   
-  // 예시 상품 데이터 (실제로는 itemId로 조회)
-  const itemData: Record<number, { title: string; owner: string; period: string; image: string }> = {
-    1: {
-      title: 'Canon EOS R5 미러리스',
-      owner: '김포토',
-      period: '2024.01.15 - 2024.01.17',
-      image: 'https://readdy.ai/api/search-image?query=Canon%20EOS%20R5%20mirrorless%20camera%20professional%20photography%20equipment%20with%20lens%20on%20clean%20white%20background&width=120&height=120&seq=camera2&orientation=squarish'
-    },
-    2: {
-      title: 'Wilson 골프채 세트',
-      owner: '골프마니아',
-      period: '2024.01.10 - 2024.01.12',
-      image: 'https://readdy.ai/api/search-image?query=Wilson%20golf%20club%20set%20professional%20equipment%20with%20golf%20bag%20on%20clean%20white%20background&width=120&height=120&seq=golf2&orientation=squarish'
-    }
-  };
-
-  const currentItem = (itemId && itemId in itemData) ? itemData[itemId] : itemData[1];
+  // 대여 정보는 API에서 가져올 예정 (현재는 null)
+  type ItemType = { title: string; owner: string; period: string; image: string };
+  const currentItem: ItemType | null = null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,21 +76,30 @@ function WriteReviewContent() {
         </div>
 
         {/* 상품 정보 */}
-        <div className="px-4 py-6">
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 shadow-sm border border-white/20 mb-6">
-            <div className="flex items-center gap-4">
-              <img 
-                src={currentItem.image} 
-                alt={currentItem.title}
-                className="w-16 h-16 rounded-xl object-cover"
-              />
-              <div className="flex-1">
-                <h3 className="font-bold text-gray-800 text-base mb-1">{currentItem.title}</h3>
-                <p className="text-sm text-gray-500 mb-1">대여자: {currentItem.owner}</p>
-                <p className="text-sm text-gray-500">{currentItem.period}</p>
+        {(() => {
+          if (!currentItem) return null;
+          const item: ItemType = currentItem;
+          return (
+            <div className="px-4 py-6">
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 shadow-sm border border-white/20 mb-6">
+                <div className="flex items-center gap-4">
+                  <img 
+                    src={item.image} 
+                    alt={item.title}
+                    className="w-16 h-16 rounded-xl object-cover"
+                  />
+                  <div className="flex-1">
+                    <h3 className="font-bold text-gray-800 text-base mb-1">{item.title}</h3>
+                    <p className="text-sm text-gray-500 mb-1">대여자: {item.owner}</p>
+                    <p className="text-sm text-gray-500">{item.period}</p>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          );
+        })()}
+        
+        <div className="px-4 py-6">
 
           {/* 별점 선택 */}
           <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-sm border border-white/20 mb-6">

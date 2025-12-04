@@ -20,77 +20,8 @@ type Notification = {
 export default function AlertPage() {
   const router = useRouter();
 
-  // Notification list (static for demo; could be fetched from an API)
-  const notifications: Notification[] = [
-    {
-      id: 1,
-      type: 'chat',
-      title: '새로운 메시지',
-      message: '김민수님이 메시지를 보냈습니다: "금요일 6시 이후면 가능해요!"',
-      time: '5분 전',
-      isRead: false,
-      avatar:
-        'https://readdy.ai/api/search-image?query=friendly%20young%20korean%20man%20smiling%20profile%20photo%20with%20clean%20background%20for%20chat%20application&width=40&height=40&seq=chat1&orientation=squarish',
-      action: () => {
-        try {
-          router.push('/chat/1');
-        } catch (e) {
-          console.error('Navigation error:', e);
-        }
-      },
-    },
-    {
-      id: 2,
-      type: 'rental',
-      title: '대여 요청',
-      message: '박지영님이 미러리스 카메라 대여를 요청했습니다.',
-      time: '1시간 전',
-      isRead: false,
-      avatar:
-        'https://readdy.ai/api/search-image?query=friendly%20young%20korean%20woman%20smiling%20profile%20photo%20with%20clean%20background%20for%20chat%20application&width=40&height=40&seq=chat2&orientation=squarish',
-      action: () => {
-        try {
-          router.push('/chat/2');
-        } catch (e) {
-          console.error('Navigation error:', e);
-        }
-      },
-    },
-    {
-      id: 3,
-      type: 'return',
-      title: '반납 완료',
-      message: '이준호님이 캠핑 텐트를 반납했습니다. 후기를 남겨주세요!',
-      time: '3시간 전',
-      isRead: true,
-      avatar:
-        'https://readdy.ai/api/search-image?query=friendly%20young%20korean%20man%20with%20casual%20style%20profile%20photo%20with%20clean%20background%20for%20chat%20application&width=40&height=40&seq=chat3&orientation=squarish',
-      action: () => {
-        try {
-          router.push('/chat/3');
-        } catch (e) {
-          console.error('Navigation error:', e);
-        }
-      },
-    },
-    {
-      id: 4,
-      type: 'review',
-      title: '새로운 후기',
-      message: '최수진님이 어쿠스틱 기타에 후기를 남겼습니다. ⭐⭐⭐⭐⭐',
-      time: '6시간 전',
-      isRead: true,
-      avatar:
-        'https://readdy.ai/api/search-image?query=friendly%20young%20korean%20woman%20with%20artistic%20style%20profile%20photo%20with%20clean%20background%20for%20chat%20application&width=40&height=40&seq=chat4&orientation=squarish',
-      action: () => {
-        try {
-          router.push('/chat/4');
-        } catch (e) {
-          console.error('Navigation error:', e);
-        }
-      },
-    },
-  ];
+  // Notification list - API에서 가져올 예정 (현재는 빈 배열)
+  const notifications: Notification[] = [];
 
   /** Returns the appropriate Remix Icon class name for a given notification type */
   const getNotificationIcon = (type: string) => {

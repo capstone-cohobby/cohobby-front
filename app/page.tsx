@@ -102,12 +102,18 @@ export default function Home() {
 
   // 백엔드 응답을 프론트엔드 형식으로 변환
   const mapPostToProduct = (post: GetPostResponse) => {
-    const today = new Date();
-    const availableFrom = post.availableFrom ? new Date(post.availableFrom) : null;
-    const availableUntil = post.availableUntil ? new Date(post.availableUntil) : null;
-    const isAvailable = availableFrom && availableUntil 
-      ? today >= availableFrom && today <= availableUntil 
-      : true;
+    // 백엔드에서 받은 available 필드를 우선 사용, 없으면 날짜 기반으로 계산
+    let isAvailable: boolean;
+    if (post.available !== null && post.available !== undefined) {
+      isAvailable = post.available;
+    } else {
+      const today = new Date();
+      const availableFrom = post.availableFrom ? new Date(post.availableFrom) : null;
+      const availableUntil = post.availableUntil ? new Date(post.availableUntil) : null;
+      isAvailable = availableFrom && availableUntil 
+        ? today >= availableFrom && today <= availableUntil 
+        : true;
+    }
 
     return {
       id: String(post.postId),

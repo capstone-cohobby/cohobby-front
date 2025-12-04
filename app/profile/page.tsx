@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useRef, Suspense } from 'react';
+import { useState, useEffect, useRef, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Script from 'next/script';
@@ -125,10 +125,43 @@ function ProfilePageContent() {
     fetchUserProfile();
   }, [router]);
 
-  // 대여 내역 조회
+  // 통계를 위한 대여 내역 조회 (프로필 상단 통계 표시용)
+  useEffect(() => {
+    const fetchRentalHistoryForStats = async () => {
+      try {
+        const rentals = await getMyRentalHistory();
+        setRentalHistory(rentals);
+      } catch (error) {
+        console.error('대여 내역 조회 실패:', error);
+        setRentalHistory([]);
+      }
+    };
+
+    fetchRentalHistoryForStats();
+  }, []);
+
+  // 통계를 위한 등록 상품 조회 (프로필 상단 통계 표시용)
+  useEffect(() => {
+    const fetchMyPostsForStats = async () => {
+      try {
+        const posts = await getMyPosts();
+        setMyPosts(posts);
+      } catch (error) {
+        console.error('등록 상품 조회 실패:', error);
+        setMyPosts([]);
+      }
+    };
+
+    fetchMyPostsForStats();
+  }, []);
+
+  // 대여 내역 조회 (탭 선택 시에만)
   useEffect(() => {
     const fetchRentalHistory = async () => {
       if (selectedTab !== '대여내역') return;
+      
+      // 이미 데이터가 있으면 다시 로드하지 않음
+      if (rentalHistory.length > 0) return;
       
       setIsLoadingRentals(true);
       try {
@@ -143,12 +176,15 @@ function ProfilePageContent() {
     };
 
     fetchRentalHistory();
-  }, [selectedTab]);
+  }, [selectedTab, rentalHistory.length]);
 
-  // 내 등록 상품 조회
+  // 내 등록 상품 조회 (탭 선택 시에만)
   useEffect(() => {
     const fetchMyPosts = async () => {
       if (selectedTab !== '등록상품') return;
+      
+      // 이미 데이터가 있으면 다시 로드하지 않음
+      if (myPosts.length > 0) return;
       
       setIsLoadingPosts(true);
       try {
@@ -163,16 +199,22 @@ function ProfilePageContent() {
     };
 
     fetchMyPosts();
-  }, [selectedTab]);
+  }, [selectedTab, myPosts.length]);
 
   // 백엔드 응답을 프론트엔드 형식으로 변환
   const mapPostToProduct = (post: GetPostResponse) => {
-    const today = new Date();
-    const availableFrom = post.availableFrom ? new Date(post.availableFrom) : null;
-    const availableUntil = post.availableUntil ? new Date(post.availableUntil) : null;
-    const isAvailable = availableFrom && availableUntil 
-      ? today >= availableFrom && today <= availableUntil 
-      : true;
+    // 백엔드에서 받은 available 필드를 우선 사용, 없으면 날짜 기반으로 계산
+    let isAvailable: boolean;
+    if (post.available !== null && post.available !== undefined) {
+      isAvailable = post.available;
+    } else {
+      const today = new Date();
+      const availableFrom = post.availableFrom ? new Date(post.availableFrom) : null;
+      const availableUntil = post.availableUntil ? new Date(post.availableUntil) : null;
+      isAvailable = availableFrom && availableUntil 
+        ? today >= availableFrom && today <= availableUntil 
+        : true;
+    }
 
     return {
       id: String(post.postId),
@@ -228,19 +270,31 @@ function ProfilePageContent() {
     return date.toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\./g, '.').replace(/\s/g, '');
   };
 
+  // 실제 데이터로 통계 계산 (useMemo로 최적화)
+  const stats = useMemo(() => {
+    const rentalCount = rentalHistory.length; // 대여 내역 개수
+    const registeredItemsCount = myPosts.length; // 등록 상품 개수
+    const completedDealsCount = rentalHistory.filter(item => item.status === 'COMPLETED').length; // 완료된 거래 수
+    
+    return {
+      rentalCount,
+      registeredItemsCount,
+      completedDealsCount
+    };
+  }, [rentalHistory, myPosts]);
+
   // 기본 프로필 데이터 (로딩 중이거나 데이터가 없을 때)
-  const defaultProfileData = {
+  const defaultProfileData = useMemo(() => ({
     name: profileData?.nickname || '사용자',
     email: profileData?.email || '',
     joinDate: formatDate(profileData?.createdAt || null),
     avatar: profileData?.profilePicture || 'https://readdy.ai/api/search-image?query=Professional%20friendly%20person%20avatar%20headshot%20with%20warm%20smile%20on%20clean%20white%20background%2C%20modern%20profile%20photo%20style&width=120&height=120&seq=profile1&orientation=squarish',
     level: getUserLevel(profileData?.score || 0),
     contributionPoints: profileData?.score || 0,
-    rentalCount: 0, // TODO: 실제 대여 횟수 API 연동 필요
-    registeredItems: 0, // TODO: 실제 등록 상품 수 API 연동 필요
-    rating: 4.5, // TODO: 실제 평점 API 연동 필요 (임시로 4.5 하드코딩)
-    completedDeals: 0 // TODO: 실제 완료 거래 수 API 연동 필요
-  };
+    rentalCount: stats.rentalCount,
+    registeredItems: stats.registeredItemsCount,
+    completedDeals: stats.completedDealsCount
+  }), [profileData, stats]);
 
   // RentStatus를 한글로 변환
   const getStatusText = (status: string) => {
@@ -892,11 +946,11 @@ function ProfilePageContent() {
                 </div>
                 <p className="text-sm opacity-90 mb-1">{defaultProfileData.email}</p>
                 <p className="text-xs opacity-75">가입일: {defaultProfileData.joinDate || '정보 없음'}</p>
-                <div className="flex items-center gap-1 mt-2">
-                  <i className="ri-star-fill text-yellow-300 text-sm"></i>
-                  <span className="text-sm font-medium">{defaultProfileData.rating}</span>
-                  <span className="text-xs opacity-75">({defaultProfileData.completedDeals}회 거래)</span>
-                </div>
+                {defaultProfileData.completedDeals > 0 && (
+                  <div className="flex items-center gap-1 mt-2">
+                    <span className="text-xs opacity-75">({defaultProfileData.completedDeals}회 거래)</span>
+                  </div>
+                )}
               </div>
             </div>
             
