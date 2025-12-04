@@ -54,17 +54,6 @@ export default function ProductCard({ product }: ProductCardProps) {
     fetchCurrentUser();
   }, [product.id]);
 
-  const checkIfLiked = async () => {
-    try {
-      const likedPosts = await getMyLikes();
-      const isLikedPost = likedPosts.some(post => post.postId === Number(product.id));
-      setIsLiked(isLikedPost);
-    } catch (error) {
-      // 로그인하지 않았거나 에러 발생 시
-      setIsLiked(false);
-    }
-  };
-
   const isMyPost = currentUserId !== null && product.userId !== null && currentUserId === product.userId;
 
   const handleDelete = async (e: React.MouseEvent) => {

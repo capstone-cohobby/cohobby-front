@@ -369,8 +369,10 @@ export default function ProfilePage() {
         (async () => {
           try {
             const request: CardRegisterRequest = { authKey };
-            const registeredCard = await registerCard(request);
-            setUserCard(registeredCard);
+            await registerCard(request);
+            // 카드 등록 후 최신 카드 정보를 다시 조회
+            const updatedCard = await getUserCard();
+            setUserCard(updatedCard);
             alert('카드가 성공적으로 등록되었습니다.');
           } catch (error: any) {
             console.error('카드 등록 실패:', error);
@@ -410,8 +412,10 @@ export default function ProfilePage() {
   const handleCardRegister = async (authKey: string) => {
     try {
       const request: CardRegisterRequest = { authKey };
-      const registeredCard = await registerCard(request);
-      setUserCard(registeredCard);
+      await registerCard(request);
+      // 카드 등록 후 최신 카드 정보를 다시 조회
+      const updatedCard = await getUserCard();
+      setUserCard(updatedCard);
       setShowCardRegisterModal(false);
       alert('카드가 성공적으로 등록되었습니다.');
     } catch (error: any) {

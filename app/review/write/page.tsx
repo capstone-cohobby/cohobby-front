@@ -14,10 +14,11 @@ function WriteReviewContent() {
   const [comment, setComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const itemId = searchParams.get('itemId');
+  const itemIdParam = searchParams.get('itemId');
+  const itemId = itemIdParam ? parseInt(itemIdParam, 10) : null;
   
   // 예시 상품 데이터 (실제로는 itemId로 조회)
-  const itemData = {
+  const itemData: Record<number, { title: string; owner: string; period: string; image: string }> = {
     1: {
       title: 'Canon EOS R5 미러리스',
       owner: '김포토',
@@ -32,7 +33,7 @@ function WriteReviewContent() {
     }
   };
 
-  const currentItem = itemData[itemId as keyof typeof itemData] || itemData[1];
+  const currentItem = (itemId && itemId in itemData) ? itemData[itemId] : itemData[1];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
