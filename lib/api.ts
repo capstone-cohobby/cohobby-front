@@ -750,22 +750,60 @@ export interface CreateReportRequest {
   type: string;
   title: string;
   content: string;
-  imageUrl?: string;
+  images?: File[];
   delayDays?: number;
 }
 
 // 신고 생성
 export async function createReport(request: CreateReportRequest) {
-  const response = await apiFetch<{
-    isSuccess: boolean;
-    code: string;
-    message: string;
-    result: ReportResponse;
-  }>('/reports', {
+  const formData = new FormData();
+  formData.append('rentId', request.rentId.toString());
+  formData.append('type', request.type);
+  formData.append('title', request.title);
+  formData.append('content', request.content);
+  if (request.images && request.images.length > 0) {
+    request.images.forEach((image) => {
+      formData.append('images', image);
+    });
+  }
+  if (request.delayDays !== undefined) {
+    formData.append('delayDays', request.delayDays.toString());
+  }
+
+  const authHeader = getAuthHeader();
+  const headers: HeadersInit = {
+    ...(authHeader && { Authorization: authHeader }),
+  };
+
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+  const url = `${API_BASE_URL}/reports`;
+  
+  const response = await fetch(url, {
     method: 'POST',
-    body: JSON.stringify(request)
+    headers,
+    body: formData,
   });
-  return response.result;
+
+  if (!response.ok) {
+    let errorMessage = `API Error: ${response.status} ${response.statusText}`;
+    try {
+      const errorBody = await response.text();
+      if (errorBody) {
+        try {
+          const errorJson = JSON.parse(errorBody);
+          errorMessage = errorJson.message || errorJson.error || errorMessage;
+        } catch {
+          errorMessage = errorBody || errorMessage;
+        }
+      }
+    } catch {
+      // 응답 본문 읽기 실패 시 기본 메시지 사용
+    }
+    throw new Error(errorMessage);
+  }
+
+  const data = await response.json();
+  return data.result;
 }
 
 // 신고 조회
