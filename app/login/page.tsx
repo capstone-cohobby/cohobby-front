@@ -41,6 +41,15 @@ function LoginContent() {
   }, [searchParams, router]);
 
   const handleKakaoLogin = () => {
+    // 환경 변수 체크
+    if (!API_BASE_URL || API_BASE_URL === 'http://localhost:8080') {
+      const isProduction = typeof window !== 'undefined' && window.location.hostname !== 'localhost';
+      if (isProduction) {
+        alert('API 서버 주소가 설정되지 않았습니다.\n\nVercel 환경 변수에 NEXT_PUBLIC_API_URL을 설정해주세요.');
+        return;
+      }
+    }
+
     setIsLoading(true);
     
     // 현재 프론트엔드 URL을 redirect_to 파라미터로 전달
@@ -110,7 +119,7 @@ function LoginContent() {
 
         {/* 로그인 버튼들 */}
         <div className="w-full max-w-sm space-y-4">
-          {/* 사용자 로그인 버튼 */}
+          {/* 카카오 로그인 버튼 */}
           <button
             onClick={handleKakaoLogin}
             disabled={isLoading}
@@ -124,7 +133,7 @@ function LoginContent() {
             ) : (
               <>
                 <i className="ri-kakao-talk-fill text-2xl"></i>
-                <span>사용자 로그인</span>
+                <span>카카오 로그인</span>
               </>
             )}
           </button>
