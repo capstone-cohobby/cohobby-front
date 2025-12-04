@@ -101,11 +101,16 @@ export default function ProductDetail({ productId }: ProductDetailProps) {
           ? postDetail.images
           : ['https://via.placeholder.com/400x400'];
 
-        // 대여 가능 여부 확인
-        const today = new Date();
-        const isAvailable = postDetail.availableFrom && postDetail.availableUntil
-          ? today >= new Date(postDetail.availableFrom) && today <= new Date(postDetail.availableUntil)
-          : true;
+        // 대여 가능 여부 확인 (백엔드에서 받은 available 필드를 우선 사용)
+        let isAvailable: boolean;
+        if (postDetail.available !== null && postDetail.available !== undefined) {
+          isAvailable = postDetail.available;
+        } else {
+          const today = new Date();
+          isAvailable = postDetail.availableFrom && postDetail.availableUntil
+            ? today >= new Date(postDetail.availableFrom) && today <= new Date(postDetail.availableUntil)
+            : true;
+        }
 
         const mappedProduct: Product = {
           id: String(postDetail.postId),
@@ -941,9 +946,14 @@ export default function ProductDetail({ productId }: ProductDetailProps) {
         <div className="fixed bottom-24 left-0 right-0 px-4 bg-white/90 backdrop-blur-md py-4 border-t border-white/20 shadow-lg z-40">
           <button 
             onClick={handleRentalInquiry}
-            className="w-full py-4 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-2xl font-bold text-lg hover:from-purple-600 hover:to-purple-700 transition-all duration-300 shadow-lg cursor-pointer whitespace-nowrap"
+            disabled={!product?.available}
+            className={`w-full py-4 rounded-2xl font-bold text-lg transition-all duration-300 shadow-lg whitespace-nowrap ${
+              product?.available
+                ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white hover:from-purple-600 hover:to-purple-700 cursor-pointer'
+                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            }`}
           >
-            대여하기
+            {product?.available ? '대여하기' : '대여 불가'}
           </button>
         </div>
       ) : null}

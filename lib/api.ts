@@ -343,6 +343,7 @@ export interface GetPostResponse {
   categoryName: string | null;
   userId: number | null;
   userNickname: string | null;
+  available: boolean | null;
 }
 
 // 게시물 검색
@@ -395,6 +396,7 @@ export interface GetPostDetailResponse {
   userId: number | null;
   userNickname: string | null;
   userProfilePicture: string | null;
+  available: boolean | null;
 }
 
 // 게시물 상세 조회
