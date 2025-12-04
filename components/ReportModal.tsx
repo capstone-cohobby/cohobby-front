@@ -15,7 +15,8 @@ export default function ReportModal({ isOpen, onClose, rentId, reportTypes, isOw
   const [reportType, setReportType] = useState('');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [imageUrl, setImageUrl] = useState('');
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [delayDays, setDelayDays] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -33,6 +34,11 @@ export default function ReportModal({ isOpen, onClose, rentId, reportTypes, isOw
       return;
     }
 
+    if (imageFiles.length > 5) {
+      alert('이미지는 최대 5개까지 업로드할 수 있습니다.');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const request: CreateReportRequest = {
@@ -40,7 +46,7 @@ export default function ReportModal({ isOpen, onClose, rentId, reportTypes, isOw
         type: reportType,
         title,
         content,
-        imageUrl: imageUrl || undefined,
+        images: imageFiles.length > 0 ? imageFiles : undefined,
         delayDays: delayDays ? parseInt(delayDays) : undefined,
       };
 
@@ -50,7 +56,8 @@ export default function ReportModal({ isOpen, onClose, rentId, reportTypes, isOw
       setReportType('');
       setTitle('');
       setContent('');
-      setImageUrl('');
+      setImageFiles([]);
+      setImagePreviews([]);
       setDelayDays('');
       onClose();
     } catch (error: any) {
@@ -136,16 +143,78 @@ export default function ReportModal({ isOpen, onClose, rentId, reportTypes, isOw
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              이미지 URL (선택)
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              이미지 (선택, 최대 5개)
             </label>
-            <input
-              type="url"
-              value={imageUrl}
-              onChange={(e) => setImageUrl(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="https://example.com/image.jpg"
-            />
+            <div className="grid grid-cols-3 gap-2">
+              {imagePreviews.map((preview, index) => (
+                <div key={index} className="relative aspect-square group">
+                  <img
+                    src={preview}
+                    alt={`미리보기 ${index + 1}`}
+                    className="w-full h-full object-cover rounded-lg"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newFiles = [...imageFiles];
+                      const newPreviews = [...imagePreviews];
+                      newFiles.splice(index, 1);
+                      newPreviews.splice(index, 1);
+                      setImageFiles(newFiles);
+                      setImagePreviews(newPreviews);
+                    }}
+                    className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              {imageFiles.length < 5 && (
+                <label className="aspect-square border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer hover:border-gray-400 transition-colors">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      const remainingSlots = 5 - imageFiles.length;
+                      const filesToAdd = files.slice(0, remainingSlots);
+                      
+                      if (files.length > remainingSlots) {
+                        alert(`최대 ${remainingSlots}개까지 추가할 수 있습니다.`);
+                      }
+                      
+                      if (filesToAdd.length > 0) {
+                        setImageFiles([...imageFiles, ...filesToAdd]);
+                        
+                        // 미리보기 생성
+                        filesToAdd.forEach((file) => {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            setImagePreviews((prev) => [...prev, reader.result as string]);
+                          };
+                          reader.readAsDataURL(file);
+                        });
+                      }
+                      
+                      // input 초기화 (같은 파일 다시 선택 가능하도록)
+                      e.target.value = '';
+                    }}
+                    className="hidden"
+                  />
+                  <div className="text-center">
+                    <i className="ri-add-line text-2xl text-gray-400"></i>
+                    <p className="text-xs text-gray-400 mt-1">추가</p>
+                  </div>
+                </label>
+              )}
+            </div>
+            {imageFiles.length > 0 && (
+              <p className="text-xs text-gray-500 mt-2">
+                {imageFiles.length}/5 개의 이미지가 선택되었습니다.
+              </p>
+            )}
           </div>
 
           <div className="flex gap-2">
