@@ -110,32 +110,14 @@ export default function UserProfileClient({ userId }: UserProfileClientProps) {
     }
   ];
 
-  const reviews = [
-    {
-      id: 1,
-      reviewer: '대여고객1',
-      rating: 5,
-      comment: '상태가 정말 좋았어요! 설명도 자세히 해주시고 친절하셨습니다.',
-      date: '2024.01.15',
-      item: 'Wilson 골프채 세트'
-    },
-    {
-      id: 2,
-      reviewer: '사진애호가',
-      rating: 5,
-      comment: '카메라 상태 완벽하고 케이스까지 깨끗하게 챙겨주셔서 감사합니다!',
-      date: '2024.01.10',
-      item: 'Sony FX3 카메라'
-    },
-    {
-      id: 3,
-      reviewer: '캠핑러버',
-      rating: 4,
-      comment: '텐트 상태 좋고 설명서도 같이 주셔서 도움 많이 됐어요.',
-      date: '2024.01.05',
-      item: '4인용 백팩킹 텐트'
-    }
-  ];
+  const reviews: Array<{
+    id: number;
+    reviewer: string;
+    rating: number;
+    comment: string;
+    date: string;
+    item: string;
+  }> = [];
 
   const reportReasons = [
     '부적절한 콘텐츠',
@@ -257,25 +239,34 @@ export default function UserProfileClient({ userId }: UserProfileClientProps) {
         {/* 리뷰 */}
         <div className="px-4">
           <h3 className="text-lg font-bold text-gray-800 mb-4">받은 리뷰</h3>
-          <div className="space-y-4">
-            {reviews.map((review) => (
-              <div key={review.id} className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 shadow-sm border border-white/20">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-gray-800 text-sm">{review.reviewer}</span>
-                    <div className="flex items-center gap-1">
-                      {[...Array(5)].map((_, i) => (
-                        <i key={i} className={`ri-star-${i < review.rating ? 'fill' : 'line'} text-yellow-400 text-xs`}></i>
-                      ))}
-                    </div>
-                  </div>
-                  <span className="text-xs text-gray-500">{review.date}</span>
-                </div>
-                <p className="text-xs text-gray-500 mb-2">{review.item}</p>
-                <p className="text-sm text-gray-700">{review.comment}</p>
+          {reviews.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i className="ri-inbox-line text-gray-400 text-2xl"></i>
               </div>
-            ))}
-          </div>
+              <p className="text-gray-500 text-sm">받은 리뷰가 없습니다</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {reviews.map((review) => (
+                <div key={review.id} className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 shadow-sm border border-white/20">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-gray-800 text-sm">{review.reviewer}</span>
+                      <div className="flex items-center gap-1">
+                        {[...Array(5)].map((_, i) => (
+                          <i key={i} className={`ri-star-${i < review.rating ? 'fill' : 'line'} text-yellow-400 text-xs`}></i>
+                        ))}
+                      </div>
+                    </div>
+                    <span className="text-xs text-gray-500">{review.date}</span>
+                  </div>
+                  <p className="text-xs text-gray-500 mb-2">{review.item}</p>
+                  <p className="text-sm text-gray-700">{review.comment}</p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* 하단 여백 */}

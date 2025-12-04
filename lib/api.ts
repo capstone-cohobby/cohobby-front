@@ -29,7 +29,17 @@ export async function apiFetch<T>(
       if (errorBody) {
         try {
           const errorJson = JSON.parse(errorBody);
-          errorMessage = errorJson.message || errorJson.error || errorMessage;
+          // BaseResponse 형식의 에러 응답 처리
+          if (errorJson.message) {
+            errorMessage = errorJson.message;
+          } else if (errorJson.error) {
+            errorMessage = errorJson.error;
+          } else if (errorJson.result && typeof errorJson.result === 'string') {
+            errorMessage = errorJson.result;
+          } else if (errorJson.code) {
+            // 에러 코드가 있으면 메시지와 함께 표시
+            errorMessage = errorJson.message || `오류 코드: ${errorJson.code}`;
+          }
         } catch {
           errorMessage = errorBody || errorMessage;
         }
@@ -38,7 +48,7 @@ export async function apiFetch<T>(
       // 응답 본문 읽기 실패 시 기본 메시지 사용
     }
     
-    console.error(`[apiFetch] 에러: ${url} - ${errorMessage}`);
+    console.error(`[apiFetch] 에러: ${url} - ${errorMessage}`, response.status);
     throw new Error(errorMessage);
   }
 

@@ -252,7 +252,7 @@ export default function ProfilePage() {
       case 'ONGOING':
         return '대여중';
       case 'COMPLETED':
-        return '대여 완료';
+        return '대여 종료';
       case 'CANCELLED':
         return '취소됨';
       case 'DISPUTED':
@@ -284,26 +284,15 @@ export default function ProfilePage() {
 
 
 
-  const reviews = [
-    {
-      id: 1,
-      item: 'Canon EOS R5 미러리스',
-      reviewer: '사진애호가',
-      rating: 5,
-      comment: '상태가 정말 좋았어요! 깨끗하게 관리되어 있고 설명도 자세히 해주셔서 감사합니다.',
-      date: '2024.01.18',
-      reply: '좋은 리뷰 감사합니다! 앞으로도 깨끗하게 관리하겠습니다.'
-    },
-    {
-      id: 2,
-      item: 'Nintendo Switch OLED',
-      reviewer: '게임러버',
-      rating: 4,
-      comment: '게임 잘 되고 화질도 좋네요. 다음에도 빌릴게요!',
-      date: '2024.01.15',
-      reply: ''
-    }
-  ];
+  const reviews: Array<{
+    id: number;
+    item: string;
+    reviewer: string;
+    rating: number;
+    comment: string;
+    date: string;
+    reply: string;
+  }> = [];
 
   const menuItems = [
     { id: '대여내역', icon: 'ri-history-line', label: '내 대여 내역' },
@@ -385,7 +374,9 @@ export default function ProfilePage() {
             alert('카드가 성공적으로 등록되었습니다.');
           } catch (error: any) {
             console.error('카드 등록 실패:', error);
-            alert('카드 등록에 실패했습니다: ' + (error.message || '알 수 없는 오류'));
+            const errorMessage = error.message || '알 수 없는 오류';
+            // 서버 에러 메시지가 있으면 그대로 표시
+            alert('카드 등록에 실패했습니다.\n\n' + errorMessage);
           } finally {
             finalize();
           }
@@ -700,6 +691,16 @@ export default function ProfilePage() {
         );
 
       case '리뷰관리':
+        if (reviews.length === 0) {
+          return (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i className="ri-inbox-line text-gray-400 text-2xl"></i>
+              </div>
+              <p className="text-gray-500 text-sm">받은 리뷰가 없습니다</p>
+            </div>
+          );
+        }
         return (
           <div className="space-y-4">
             {reviews.map((review) => (
@@ -963,6 +964,17 @@ function CardRegisterModal({ onClose, userId }: { onClose: () => void; userId: n
   const [isRegistering, setIsRegistering] = useState(false);
   const [tossPaymentsLoaded, setTossPaymentsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 모달이 닫힐 때 상태 초기화 및 타임아웃 정리
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      setIsRegistering(false);
+    };
+  }, []);
 
   const handleCardRegister = async () => {
     if (!tossPaymentsLoaded) {
@@ -975,6 +987,12 @@ function CardRegisterModal({ onClose, userId }: { onClose: () => void; userId: n
       return;
     }
 
+    // 기존 타임아웃이 있으면 정리
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+
     try {
       setIsRegistering(true);
       setError(null);
@@ -983,11 +1001,15 @@ function CardRegisterModal({ onClose, userId }: { onClose: () => void; userId: n
       const clientKey = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY;
       
       if (!clientKey) {
-        throw new Error('Toss Payments 클라이언트 키가 설정되지 않았습니다.');
+        setIsRegistering(false);
+        setError('Toss Payments 클라이언트 키가 설정되지 않았습니다.\n환경 변수 NEXT_PUBLIC_TOSS_CLIENT_KEY를 확인해주세요.');
+        return;
       }
 
       if (typeof window === 'undefined' || !(window as any).TossPayments) {
-        throw new Error('결제 시스템을 초기화하는데 실패했습니다. 페이지를 새로고침해주세요.');
+        setIsRegistering(false);
+        setError('결제 시스템을 초기화하는데 실패했습니다. 페이지를 새로고침해주세요.');
+        return;
       }
 
       const tossPayments = (window as any).TossPayments(clientKey);
@@ -1007,47 +1029,140 @@ function CardRegisterModal({ onClose, userId }: { onClose: () => void; userId: n
       const successUrl = `${baseUrl}/profile?cardRegister=success`;
       const failUrl = `${baseUrl}/profile?cardRegister=fail`;
       
-      console.log('카드 인증 요청:', { successUrl, failUrl, baseUrl, customerKey, userId });
+      console.log('카드 인증 요청 시작:', { successUrl, failUrl, baseUrl, customerKey, userId });
+      
+      // 타임아웃 설정: 3초 후에도 리다이렉트가 발생하지 않으면 상태 초기화
+      // requestBillingAuth는 즉시 리다이렉트를 수행해야 하므로 3초면 충분합니다
+      timeoutRef.current = setTimeout(() => {
+        console.warn('카드 인증 타임아웃: 리다이렉트가 발생하지 않았습니다.');
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+          timeoutRef.current = null;
+        }
+        setIsRegistering(false);
+        setError('카드 인증 창이 열리지 않았습니다.\n\n가능한 원인:\n1. 팝업 차단기가 활성화되어 있음\n2. 브라우저가 리다이렉트를 차단함\n3. 토스페이먼츠 서버 연결 문제\n\n해결 방법:\n- 팝업 차단을 해제하고 다시 시도해주세요.\n- 다른 브라우저로 시도해보세요.');
+      }, 3000);
       
       try {
-        await tossPayments.requestBillingAuth('카드', {
-          customerKey: customerKey, // 백엔드와 동일한 형식 사용
+        // 현재 URL 저장 (리다이렉트 확인용)
+        const currentUrl = window.location.href;
+        
+        // requestBillingAuth 호출
+        // 이 함수는 리다이렉트를 수행하므로 Promise가 완료되지 않을 수 있습니다
+        console.log('requestBillingAuth 호출 시작...');
+        
+        // requestBillingAuth를 비동기로 호출하되, 에러만 catch
+        tossPayments.requestBillingAuth('카드', {
+          customerKey: customerKey,
           successUrl: successUrl,
           failUrl: failUrl,
+        }).catch((error: any) => {
+          // 즉시 에러가 발생한 경우에만 처리
+          console.error('requestBillingAuth 즉시 에러:', error);
+          
+          // 타임아웃 정리
+          if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+            timeoutRef.current = null;
+          }
+          
+          setIsRegistering(false);
+          
+          if (error.message && (error.message.includes('successUrl') || error.message.includes('URL'))) {
+            setError(`URL 설정 오류가 발생했습니다.\n\n성공 URL: ${successUrl}\n실패 URL: ${failUrl}\n\n토스페이먼츠 관리자 콘솔에서 이 URL들을 등록했는지 확인해주세요.`);
+          } else {
+            setError(error.message || '카드 인증 요청에 실패했습니다. 다시 시도해주세요.');
+          }
         });
+
+        // requestBillingAuth 호출 후 짧은 시간 대기하여 리다이렉트 여부 확인
+        // 리다이렉트가 발생하면 이 코드는 실행되지 않습니다
+        setTimeout(() => {
+          // 페이지가 여전히 같은 위치에 있는지 확인
+          if (window.location.href === currentUrl && timeoutRef.current) {
+            console.log('리다이렉트가 발생하지 않았습니다. 타임아웃 핸들러가 처리합니다.');
+            // 타임아웃 핸들러가 이미 처리하므로 여기서는 아무것도 하지 않음
+          }
+        }, 1000);
+        
       } catch (urlError: any) {
-        // successUrl 오류인 경우 더 자세한 정보 제공
-        if (urlError.message && urlError.message.includes('successUrl')) {
-          throw new Error(`successUrl 오류: ${successUrl}\n토스페이먼츠 관리자 콘솔에서 이 URL을 등록했는지 확인하세요.`);
+        // 타임아웃 정리
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+          timeoutRef.current = null;
         }
-        throw urlError;
+        
+        console.error('requestBillingAuth 호출 중 에러:', urlError);
+        
+        // successUrl 오류인 경우 더 자세한 정보 제공
+        if (urlError.message && (urlError.message.includes('successUrl') || urlError.message.includes('URL'))) {
+          setIsRegistering(false);
+          setError(`URL 설정 오류가 발생했습니다.\n\n성공 URL: ${successUrl}\n실패 URL: ${failUrl}\n\n토스페이먼츠 관리자 콘솔에서 이 URL들을 등록했는지 확인해주세요.`);
+          return;
+        }
+        
+        // 기타 에러
+        setIsRegistering(false);
+        setError(urlError.message || '카드 인증 요청에 실패했습니다. 다시 시도해주세요.');
+        return;
       }
 
       // requestBillingAuth는 리다이렉트를 수행하므로 여기까지 도달하지 않습니다.
       // 성공 시 successUrl로 리다이렉트되고, useEffect에서 authKey를 처리합니다.
       // 모달은 리다이렉트로 인해 자동으로 닫힙니다.
     } catch (err: any) {
+      // 타임아웃 정리
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      
       console.error('카드 등록 오류:', err);
-      setError(err.message || '카드 등록에 실패했습니다.');
       setIsRegistering(false);
+      setError(err.message || '카드 등록에 실패했습니다.');
     }
-    // finally 블록을 제거했습니다. 리다이렉트가 발생하면 이 함수가 완료되지 않기 때문입니다.
   };
+
+  const handleClose = () => {
+    // 타임아웃 정리
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    setIsRegistering(false);
+    setError(null);
+    onClose();
+  };
+
+  // 토스페이먼츠 스크립트 로드 확인
+  useEffect(() => {
+    // 스크립트가 이미 로드되어 있는지 확인
+    if (typeof window !== 'undefined' && (window as any).TossPayments) {
+      setTossPaymentsLoaded(true);
+    }
+  }, []);
 
   return (
     <>
       <Script
         src="https://js.tosspayments.com/v1"
-        onLoad={() => setTossPaymentsLoaded(true)}
-        onError={() => setError('결제 시스템을 로드하는데 실패했습니다.')}
+        onLoad={() => {
+          console.log('토스페이먼츠 스크립트 로드 완료');
+          setTossPaymentsLoaded(true);
+        }}
+        onError={() => {
+          console.error('토스페이먼츠 스크립트 로드 실패');
+          setError('결제 시스템을 로드하는데 실패했습니다. 인터넷 연결을 확인해주세요.');
+        }}
       />
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-2xl p-6 w-full max-w-md">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-bold text-gray-800 text-lg">카드 등록</h3>
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="text-gray-400 hover:text-gray-600"
+              disabled={isRegistering}
             >
               <i className="ri-close-line text-2xl"></i>
             </button>
@@ -1070,8 +1185,9 @@ function CardRegisterModal({ onClose, userId }: { onClose: () => void; userId: n
             <div className="flex gap-2 pt-2">
               <button
                 type="button"
-                onClick={onClose}
-                className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+                onClick={handleClose}
+                disabled={isRegistering}
+                className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 취소
               </button>
@@ -1082,9 +1198,9 @@ function CardRegisterModal({ onClose, userId }: { onClose: () => void; userId: n
                 className="flex-1 py-3 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg font-medium hover:from-purple-600 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {!tossPaymentsLoaded 
-                  ? '로딩 중...' 
+                  ? '결제 시스템 로딩 중...' 
                   : isRegistering 
-                  ? '인증 중...' 
+                  ? '카드 인증 창 열기 중...' 
                   : '카드 인증하기'}
               </button>
             </div>
