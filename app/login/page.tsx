@@ -6,11 +6,17 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { apiFetch } from '../../lib/api';
 import { setAccessToken, setRefreshToken } from '../../lib/auth';
 
-// 프로덕션에서는 /api를 사용 (Vercel rewrites가 처리), 로컬에서는 직접 백엔드 주소 사용
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 
-  (typeof window !== 'undefined' && window.location.hostname !== 'localhost' 
-    ? '/api' 
-    : 'http://localhost:8080');
+// 프로덕션에서는 무조건 /api를 사용 (Vercel rewrites가 처리), 로컬에서는 직접 백엔드 주소 사용
+const getApiBaseUrl = () => {
+  // 로컬 개발 환경
+  if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+    return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+  }
+  // 프로덕션 환경 - 무조건 /api 사용 (프록시)
+  return '/api';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 function LoginContent() {
   const router = useRouter();
