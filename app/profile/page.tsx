@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Script from 'next/script';
@@ -24,7 +24,7 @@ interface UserProfile {
   createdAt: string;
 }
 
-export default function ProfilePage() {
+function ProfilePageContent() {
   const [selectedTab, setSelectedTab] = useState('대여내역');
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -1212,5 +1212,21 @@ function CardRegisterModal({ onClose, userId }: { onClose: () => void; userId: n
         </div>
       </div>
     </>
+  );
+}
+
+function LoadingFallback() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-green-50 flex items-center justify-center">
+      <div className="w-8 h-8 border-4 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+    </div>
+  );
+}
+
+export default function ProfilePage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <ProfilePageContent />
+    </Suspense>
   );
 }

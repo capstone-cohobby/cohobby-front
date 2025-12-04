@@ -57,6 +57,23 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
   const readSubRef = useRef<any>(null);
   const roomInfoRef = useRef<{ roomId: number; userId: number; peerId: number; lastMessageId?: number } | null>(null);
 
+  const normalizeMessageText = (value: unknown): string => {
+    if (typeof value === 'string') {
+      return value;
+    }
+    if (value === null || value === undefined) {
+      return '';
+    }
+    if (typeof value === 'object') {
+      try {
+        return JSON.stringify(value);
+      } catch {
+        return String(value);
+      }
+    }
+    return String(value);
+  };
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -135,14 +152,22 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
         }
         
         const formattedMessages: Message[] = chatMessages.map(msg => {
+          const safeText = normalizeMessageText(msg.text);
+          let displayTime = '';
+          try {
+            displayTime = formatMessageTime(msg.time);
+          } catch (timeErr) {
+            console.error('초기 메시지 시간 포맷팅 오류:', timeErr);
+            displayTime = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+          }
           const isSent = msg.senderId === user.id;
           // 내가 보낸 메시지이고, 상대방이 읽었다면 isRead를 true로 설정
           const isRead = isSent && msg.id <= peerLastReadMessageId;
           return {
             id: msg.id,
             type: isSent ? 'sent' : 'received',
-            message: msg.text,
-            time: formatMessageTime(msg.time),
+            message: safeText,
+            time: displayTime,
             senderId: msg.senderId,
             isRead: isRead,
             avatar: !isSent ? (peerProfile.profilePicture || DEFAULT_PROFILE_IMAGE) : undefined
@@ -297,12 +322,41 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
     // 새 메시지 구독
     roomSubRef.current = client.subscribe(`/sub/chatting/room/${roomId}`, (frame) => {
       try {
+        // frame.body가 없는 경우 예외 처리
+        if (!frame.body) {
+          console.error('메시지 body가 없습니다.');
+          return;
+        }
+
         const msg = JSON.parse(frame.body);
+        
+        // 필수 필드 검증 및 안전한 변환
+        if (!msg || typeof msg !== 'object') {
+          console.error('잘못된 메시지 형식:', msg);
+          return;
+        }
+
+        // 메시지 텍스트를 안전하게 문자열로 변환
+        const messageText = normalizeMessageText(msg.text);
+
+        // 시간을 안전하게 처리
+        let messageTime = '';
+        if (msg.time) {
+          try {
+            messageTime = formatMessageTime(msg.time);
+          } catch (timeErr) {
+            console.error('시간 포맷팅 오류:', timeErr);
+            messageTime = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+          }
+        } else {
+          messageTime = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+        }
+
         const newMsg: Message = {
-          id: msg.id,
+          id: msg.id || Date.now(),
           type: msg.senderId === currentUserId ? 'sent' : 'received',
-          message: msg.text,
-          time: formatMessageTime(msg.time),
+          message: messageText,
+          time: messageTime,
           senderId: msg.senderId,
           isRead: false,
           avatar: msg.senderId !== currentUserId ? (peerInfo?.avatar || DEFAULT_PROFILE_IMAGE) : undefined
@@ -317,24 +371,45 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
         });
 
         // 상대방이 보낸 메시지면 읽음 표시 전송
-        if (msg.senderId !== currentUserId) {
+        if (msg.senderId !== currentUserId && msg.id) {
           sendRead(roomId, currentUserId, msg.id);
         }
       } catch (err) {
         console.error('메시지 파싱 오류:', err);
+        // 에러 객체가 렌더링되지 않도록 안전하게 처리
+        if (err instanceof Error) {
+          console.error('에러 상세:', err.message, err.stack);
+        }
       }
     });
 
     // 읽음 상태 구독
     readSubRef.current = client.subscribe(`/sub/chatting/room/${roomId}/read`, (frame) => {
       try {
+        if (!frame.body) {
+          console.error('읽음 상태 body가 없습니다.');
+          return;
+        }
+
         const receipt = JSON.parse(frame.body);
+        
+        // receipt가 객체이고 필수 필드가 있는지 확인
+        if (!receipt || typeof receipt !== 'object') {
+          console.error('잘못된 읽음 상태 형식:', receipt);
+          return;
+        }
+
         if (receipt.userId !== currentUserId) {
-          setLastReadOfPeer(receipt.lastReadMessageId || 0);
-          setMessages((prev) => updateMessageReadStatus(prev, receipt.lastReadMessageId || 0));
+          const lastReadMessageId = receipt.lastReadMessageId || 0;
+          setLastReadOfPeer(lastReadMessageId);
+          setMessages((prev) => updateMessageReadStatus(prev, lastReadMessageId));
         }
       } catch (err) {
         console.error('읽음 상태 파싱 오류:', err);
+        // 에러 객체가 렌더링되지 않도록 안전하게 처리
+        if (err instanceof Error) {
+          console.error('에러 상세:', err.message, err.stack);
+        }
       }
     });
   };
@@ -773,7 +848,11 @@ export default function ChatRoomClient({ chatId }: ChatRoomClientProps) {
                         : 'bg-white/80 backdrop-blur-sm text-gray-800 border border-white/20'
                     }`}
                   >
-                    <p className="text-sm">{message.message}</p>
+                    <p className="text-sm">
+                      {typeof message.message === 'string' 
+                        ? message.message 
+                        : String(message.message || '')}
+                    </p>
                   </div>
                   <div
                     className={`flex items-center gap-1 mt-1 ${
