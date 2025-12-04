@@ -36,9 +36,7 @@ export function connectWebSocket(
   // SockJS는 헤더를 직접 전달할 수 없으므로 쿼리 파라미터로 토큰 전달
   // 백엔드의 WebSocketHandshakeInterceptor가 쿼리 파라미터에서 토큰을 추출합니다
   // http:// -> ws://, https:// -> wss:// 변환
-  const wsBaseUrl = API_BASE_URL.replace(/^https:/, 'wss:');
-  const wsUrl = `${wsBaseUrl}/ws-stomp?token=${encodeURIComponent(token)}`;
-  console.log(`WebSocket 연결 시도: ${wsBaseUrl}/ws-stomp`);
+  const wsUrl = `${API_BASE_URL}/ws-stomp?token=${encodeURIComponent(token)}`;
   
   const socket = new SockJS(wsUrl);
   const client = new Client({
