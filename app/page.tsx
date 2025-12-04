@@ -11,13 +11,6 @@ import { isAuthenticated } from '../lib/auth';
 export default function Home() {
   const router = useRouter();
   
-  // 로그인 체크
-  useEffect(() => {
-    if (!isAuthenticated()) {
-      router.push('/login');
-    }
-  }, [router]);
-
   const [selectedMainCategory, setSelectedMainCategory] = useState('스포츠');
   const [selectedSubCategory, setSelectedSubCategory] = useState('');
   const [products, setProducts] = useState<Array<{
@@ -37,6 +30,14 @@ export default function Home() {
     userId?: number | null;
   }>>([]);
   const [loading, setLoading] = useState(false);
+
+  // 로그인 체크 (먼저 실행)
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      router.push('/login');
+      return;
+    }
+  }, [router]);
 
   const categories: Record<string, string[]> = {
     '관람': ['콘서트', '뮤지컬/오페라', '스포츠경기'],
@@ -127,8 +128,13 @@ export default function Home() {
     };
   };
 
-  // 게시물 조회
+  // 게시물 조회 (로그인된 경우에만 실행)
   useEffect(() => {
+    // 로그인 체크 - 로그인하지 않은 경우 API 호출하지 않음
+    if (!isAuthenticated()) {
+      return;
+    }
+
     const fetchPosts = async () => {
       setLoading(true);
       try {
@@ -150,8 +156,12 @@ export default function Home() {
 
         const mappedProducts = posts.map(mapPostToProduct);
         setProducts(mappedProducts);
-      } catch (error) {
+      } catch (error: any) {
         console.error('게시물 조회 실패:', error);
+        // 401 에러인 경우 로그인 페이지로 리다이렉트
+        if (error.message?.includes('401') || error.message?.includes('Unauthorized')) {
+          router.push('/login');
+        }
         setProducts([]);
       } finally {
         setLoading(false);
@@ -159,7 +169,7 @@ export default function Home() {
     };
 
     fetchPosts();
-  }, [selectedMainCategory, selectedSubCategory]);
+  }, [selectedMainCategory, selectedSubCategory, router]);
 
   const allProducts = [
     // 관람

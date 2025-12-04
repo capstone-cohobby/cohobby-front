@@ -40,6 +40,20 @@ export async function apiFetch<T>(
   });
 
   if (!response.ok) {
+    // 401 에러인 경우 로그인 페이지로 리다이렉트
+    if (response.status === 401) {
+      // 클라이언트 사이드에서만 리다이렉트
+      if (typeof window !== 'undefined') {
+        // 토큰 제거
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        // 로그인 페이지로 리다이렉트 (현재 페이지가 로그인 페이지가 아닌 경우)
+        if (!window.location.pathname.includes('/login')) {
+          window.location.href = '/login';
+        }
+      }
+    }
+
     // 응답 본문 읽기 시도
     let errorMessage = `API Error: ${response.status} ${response.statusText}`;
     try {
