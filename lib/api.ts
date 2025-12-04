@@ -1,16 +1,22 @@
 import { getAuthHeader } from './auth';
 
 // 프로덕션에서는 무조건 /api를 사용 (Vercel rewrites가 처리), 로컬에서는 직접 백엔드 주소 사용
+// 서버 사이드에서는 환경 변수 또는 기본값 사용, 클라이언트에서는 런타임에 결정
 const getApiBaseUrl = () => {
+  // 서버 사이드 렌더링 시
+  if (typeof window === 'undefined') {
+    // 서버에서는 환경 변수 또는 기본값 사용
+    return process.env.NEXT_PUBLIC_API_URL || '/api';
+  }
+  
+  // 클라이언트 사이드
   // 로컬 개발 환경
-  if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
     return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
   }
   // 프로덕션 환경 - 무조건 /api 사용 (프록시)
   return '/api';
 };
-
-const API_BASE_URL = getApiBaseUrl();
 
 export async function apiFetch<T>(
   endpoint: string,
@@ -23,6 +29,8 @@ export async function apiFetch<T>(
     ...options?.headers,
   };
 
+  // 호출 시점에 API_BASE_URL 결정 (hydration mismatch 방지)
+  const API_BASE_URL = getApiBaseUrl();
   const url = `${API_BASE_URL}${endpoint}`;
   console.log(`[apiFetch] 요청: ${options?.method || 'GET'} ${url}`);
 
@@ -532,6 +540,8 @@ export async function uploadPostImages(postId: number, images: File[]) {
     Authorization: authHeader,
   };
 
+  // 호출 시점에 API_BASE_URL 결정 (hydration mismatch 방지)
+  const API_BASE_URL = getApiBaseUrl();
   const url = `${API_BASE_URL}/posts/${postId}/image`;
   
   console.log('이미지 업로드 요청:', {
@@ -795,7 +805,8 @@ export async function createReport(request: CreateReportRequest) {
     ...(authHeader && { Authorization: authHeader }),
   };
 
-  // API_BASE_URL은 파일 상단에서 이미 정의됨
+  // 호출 시점에 API_BASE_URL 결정 (hydration mismatch 방지)
+  const API_BASE_URL = getApiBaseUrl();
   const url = `${API_BASE_URL}/reports`;
   
   const response = await fetch(url, {

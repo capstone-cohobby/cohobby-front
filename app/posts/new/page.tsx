@@ -13,17 +13,21 @@ import { FormData as PostFormData } from '../../../components/post-register/type
 
 // 프로덕션에서는 무조건 /api를 사용 (Vercel rewrites가 처리), 로컬에서는 직접 백엔드 주소 사용
 const getApiBaseUrl = () => {
+  // 서버 사이드 렌더링 시
+  if (typeof window === 'undefined') {
+    return process.env.NEXT_PUBLIC_API_URL || '/api';
+  }
   // 로컬 개발 환경
-  if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
     return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
   }
   // 프로덕션 환경 - 무조건 /api 사용 (프록시)
   return '/api';
 };
 
-const baseURL = getApiBaseUrl();
-
 const getApiUrl = (endpoint: string) => {
+  // 호출 시점에 baseURL 결정 (hydration mismatch 방지)
+  const baseURL = getApiBaseUrl();
   return `${baseURL}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
 };
 
