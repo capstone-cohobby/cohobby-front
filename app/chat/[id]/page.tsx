@@ -1,6 +1,6 @@
+import ChatRoomWrapper from './ChatRoomWrapper';
 
-import ChatRoomClient from './ChatRoomClient';
-
+// output: "export" 설정을 위해 필요
 export async function generateStaticParams() {
   return [
     { id: '1' },
@@ -12,5 +12,5 @@ export async function generateStaticParams() {
 
 export default async function ChatRoomPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return <ChatRoomClient chatId={id} />;
+  return <ChatRoomWrapper chatId={id} />;
 }
