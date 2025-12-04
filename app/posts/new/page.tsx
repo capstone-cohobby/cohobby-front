@@ -195,7 +195,7 @@ export default function NewPostPage() {
 
     try {
       // 1. 상세 정보 저장
-      const response = await fetch(`${baseURL}/posts/${targetPostId}/details`, {
+      const response = await fetch(getApiUrl(`/posts/${targetPostId}/details`), {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -219,7 +219,7 @@ export default function NewPostPage() {
       // 2. [비동기] AI 호출 (결과 대기 안 함)
       setIsAiLoading(true); 
 
-      fetch(`${baseURL}/posts/${targetPostId}/ai-estimate`, {
+      fetch(getApiUrl(`/posts/${targetPostId}/ai-estimate`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -318,7 +318,7 @@ export default function NewPostPage() {
 
     try {
       // [수정] URL: /pricing, Method: PATCH
-      const response = await fetch(`${baseURL}/posts/${targetPostId}/pricing`, {
+      const response = await fetch(getApiUrl(`/posts/${targetPostId}/pricing`), {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
