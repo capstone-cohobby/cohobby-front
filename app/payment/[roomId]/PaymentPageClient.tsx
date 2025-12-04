@@ -36,6 +36,40 @@ export default function PaymentPageClient({ params }: PaymentPageClientProps) {
   const [hasCard, setHasCard] = useState<boolean | null>(null);
   const [isCheckingCard, setIsCheckingCard] = useState(true);
 
+  // 토스페이먼츠 스크립트 로드 확인
+  useEffect(() => {
+    // 스크립트가 이미 로드되어 있는지 확인
+    const checkTossPayments = () => {
+      if (typeof window !== 'undefined' && (window as any).TossPayments) {
+        console.log('토스페이먼츠 스크립트가 이미 로드되어 있습니다.');
+        setTossPaymentsLoaded(true);
+        return true;
+      }
+      return false;
+    };
+
+    // 즉시 확인
+    if (checkTossPayments()) {
+      return;
+    }
+
+    // 스크립트가 아직 로드되지 않았다면 주기적으로 확인 (최대 10초)
+    let attempts = 0;
+    const maxAttempts = 20; // 10초 (500ms * 20)
+    const interval = setInterval(() => {
+      attempts++;
+      if (checkTossPayments()) {
+        clearInterval(interval);
+      } else if (attempts >= maxAttempts) {
+        clearInterval(interval);
+        console.warn('토스페이먼츠 스크립트 로드 타임아웃');
+        setError('결제 시스템을 로드하는데 시간이 오래 걸리고 있습니다. 페이지를 새로고침해주세요.');
+      }
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, []); // 빈 배열로 변경하여 컴포넌트 마운트 시 한 번만 실행
+
   // params에서 roomId 추출
   useEffect(() => {
     params.then(({ roomId }) => {
@@ -250,8 +284,14 @@ export default function PaymentPageClient({ params }: PaymentPageClientProps) {
     <>
       <Script
         src="https://js.tosspayments.com/v1"
-        onLoad={() => setTossPaymentsLoaded(true)}
-        onError={() => setError('결제 시스템을 로드하는데 실패했습니다.')}
+        onLoad={() => {
+          console.log('토스페이먼츠 스크립트 로드 완료');
+          setTossPaymentsLoaded(true);
+        }}
+        onError={() => {
+          console.error('토스페이먼츠 스크립트 로드 실패');
+          setError('결제 시스템을 로드하는데 실패했습니다. 인터넷 연결을 확인해주세요.');
+        }}
       />
       <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-green-50">
         <Header />
@@ -365,17 +405,24 @@ export default function PaymentPageClient({ params }: PaymentPageClientProps) {
             disabled={processing || !rentInfo || !tossPaymentsLoaded || !canMakePayment}
             className="w-full py-4 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-2xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {!tossPaymentsLoaded 
-              ? '결제 시스템 로딩 중...' 
-              : isCheckingCard
-              ? '카드 정보 확인 중...'
-              : processing 
-              ? '결제 처리 중...' 
-              : !canMakePayment
-              ? hasCard === false
-                ? '카드 등록이 필요합니다'
-                : '대여 시작 날이 아닙니다'
-              : `${formatPrice(rentInfo.totalPrice)}원 결제하기`}
+            {(() => {
+              if (!tossPaymentsLoaded) {
+                return '결제 시스템 로딩 중...';
+              }
+              if (isCheckingCard) {
+                return '카드 정보 확인 중...';
+              }
+              if (processing) {
+                return '결제 처리 중...';
+              }
+              if (!canMakePayment) {
+                if (hasCard === false) {
+                  return '카드 등록이 필요합니다';
+                }
+                return '대여 시작 날이 아닙니다';
+              }
+              return `${formatPrice(rentInfo.totalPrice)}원 결제하기`;
+            })()}
           </button>
         </div>
       </div>
