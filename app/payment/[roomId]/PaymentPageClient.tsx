@@ -8,7 +8,7 @@ import BottomNavigation from '../../../components/BottomNavigation';
 import { getRentByRoomId, createPaymentIntent, getCurrentUser, getUserCard } from '../../../lib/api';
 
 interface PaymentPageClientProps {
-  params: Promise<{ roomId: string }>;
+  params: { roomId: string };
 }
 
 interface RentInfo {
@@ -72,9 +72,9 @@ export default function PaymentPageClient({ params }: PaymentPageClientProps) {
 
   // params에서 roomId 추출
   useEffect(() => {
-    params.then(({ roomId }) => {
-      setRoomId(roomId);
-    });
+    if (params?.roomId) {
+      setRoomId(params.roomId);
+    }
   }, [params]);
 
   useEffect(() => {

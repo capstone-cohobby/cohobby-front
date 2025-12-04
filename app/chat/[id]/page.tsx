@@ -10,7 +10,7 @@ export async function generateStaticParams() {
   ];
 }
 
-export default async function ChatRoomPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export default function ChatRoomPage({ params }: { params: { id: string } }) {
+  const { id } = params;
   return <ChatRoomClient chatId={id} />;
 }
