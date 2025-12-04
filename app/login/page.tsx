@@ -6,7 +6,11 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { apiFetch } from '../../lib/api';
 import { setAccessToken, setRefreshToken } from '../../lib/auth';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+// 프로덕션에서는 /api를 사용 (Vercel rewrites가 처리), 로컬에서는 직접 백엔드 주소 사용
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 
+  (typeof window !== 'undefined' && window.location.hostname !== 'localhost' 
+    ? '/api' 
+    : 'http://localhost:8080');
 
 function LoginContent() {
   const router = useRouter();
@@ -41,14 +45,6 @@ function LoginContent() {
   }, [searchParams, router]);
 
   const handleKakaoLogin = () => {
-    // 환경 변수 체크
-    if (!API_BASE_URL || API_BASE_URL === 'http://localhost:8080') {
-      const isProduction = typeof window !== 'undefined' && window.location.hostname !== 'localhost';
-      if (isProduction) {
-        alert('API 서버 주소가 설정되지 않았습니다.\n\nVercel 환경 변수에 NEXT_PUBLIC_API_URL을 설정해주세요.');
-        return;
-      }
-    }
 
     setIsLoading(true);
     

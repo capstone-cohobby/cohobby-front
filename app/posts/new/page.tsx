@@ -11,7 +11,11 @@ import Step3Photos from '../../../components/post-register/Step3Photos';
 import Step4Price from '../../../components/post-register/Step4Price';
 import { FormData as PostFormData } from '../../../components/post-register/types';
 
-const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+// 프로덕션에서는 /api를 사용 (Vercel rewrites가 처리), 로컬에서는 직접 백엔드 주소 사용
+const baseURL = process.env.NEXT_PUBLIC_API_URL || 
+  (typeof window !== 'undefined' && window.location.hostname !== 'localhost' 
+    ? '/api' 
+    : 'http://localhost:8080');
 
 const getApiUrl = (endpoint: string) => {
   return `${baseURL}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;

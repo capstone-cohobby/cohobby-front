@@ -4,6 +4,8 @@ import { getAccessToken } from './auth';
 
 let stompClient: Client | null = null;
 
+// 프로덕션에서는 /api를 사용 (Vercel rewrites가 처리), 로컬에서는 직접 백엔드 주소 사용
+// WebSocket은 rewrites를 사용할 수 없으므로 환경 변수로 직접 설정 필요
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
 export function getStompClient(): Client | null {

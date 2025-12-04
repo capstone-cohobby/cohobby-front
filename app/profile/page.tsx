@@ -9,7 +9,11 @@ import Header from '../../components/Header';
 import BottomNavigation from '../../components/BottomNavigation';
 import { getMyRentalHistory, getMyPosts, getLikedPosts, MyRentalHistoryResponse, GetPostResponse, getUserCard, registerCard, deleteUserCard, UserCardResponse, CardRegisterRequest } from '../../lib/api';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+// 프로덕션에서는 /api를 사용 (Vercel rewrites가 처리), 로컬에서는 직접 백엔드 주소 사용
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 
+  (typeof window !== 'undefined' && window.location.hostname !== 'localhost' 
+    ? '/api' 
+    : 'http://localhost:8080');
 
 interface UserProfile {
   id: number;

@@ -1,6 +1,10 @@
 import { getAuthHeader } from './auth';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+// 프로덕션에서는 /api를 사용 (Vercel rewrites가 처리), 로컬에서는 직접 백엔드 주소 사용
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 
+  (typeof window !== 'undefined' && window.location.hostname !== 'localhost' 
+    ? '/api' 
+    : 'http://localhost:8080');
 
 export async function apiFetch<T>(
   endpoint: string,
@@ -785,7 +789,7 @@ export async function createReport(request: CreateReportRequest) {
     ...(authHeader && { Authorization: authHeader }),
   };
 
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+  // API_BASE_URL은 파일 상단에서 이미 정의됨
   const url = `${API_BASE_URL}/reports`;
   
   const response = await fetch(url, {
