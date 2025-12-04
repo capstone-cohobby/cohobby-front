@@ -18,7 +18,8 @@ function WriteReviewContent() {
   const rentId = rentIdParam ? parseInt(rentIdParam, 10) : null;
   
   // 대여 정보는 API에서 가져올 예정 (현재는 null)
-  const currentItem: { title: string; owner: string; period: string; image: string } | null = null;
+  type ItemType = { title: string; owner: string; period: string; image: string };
+  const currentItem: ItemType | null = null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,24 +76,28 @@ function WriteReviewContent() {
         </div>
 
         {/* 상품 정보 */}
-        {currentItem && (
-          <div className="px-4 py-6">
-            <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 shadow-sm border border-white/20 mb-6">
-              <div className="flex items-center gap-4">
-                <img 
-                  src={currentItem.image} 
-                  alt={currentItem.title}
-                  className="w-16 h-16 rounded-xl object-cover"
-                />
-                <div className="flex-1">
-                  <h3 className="font-bold text-gray-800 text-base mb-1">{currentItem.title}</h3>
-                  <p className="text-sm text-gray-500 mb-1">대여자: {currentItem.owner}</p>
-                  <p className="text-sm text-gray-500">{currentItem.period}</p>
+        {(() => {
+          if (!currentItem) return null;
+          const item: ItemType = currentItem;
+          return (
+            <div className="px-4 py-6">
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 shadow-sm border border-white/20 mb-6">
+                <div className="flex items-center gap-4">
+                  <img 
+                    src={item.image} 
+                    alt={item.title}
+                    className="w-16 h-16 rounded-xl object-cover"
+                  />
+                  <div className="flex-1">
+                    <h3 className="font-bold text-gray-800 text-base mb-1">{item.title}</h3>
+                    <p className="text-sm text-gray-500 mb-1">대여자: {item.owner}</p>
+                    <p className="text-sm text-gray-500">{item.period}</p>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
         
         <div className="px-4 py-6">
 

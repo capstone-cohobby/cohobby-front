@@ -17,7 +17,7 @@ export default function UserProfileClient({ userId }: UserProfileClientProps) {
   const [reportDetails, setReportDetails] = useState('');
 
   // 사용자 데이터 - API에서 가져올 예정 (현재는 null)
-  const userData: {
+  type UserDataType = {
     name: string;
     email: string;
     joinDate: string;
@@ -29,7 +29,8 @@ export default function UserProfileClient({ userId }: UserProfileClientProps) {
     rating: number;
     completedDeals: number;
     location: string;
-  } | null = null;
+  };
+  const userData: UserDataType | null = null;
 
   // 등록 상품 - API에서 가져올 예정 (현재는 빈 배열)
   const userItems: Array<{
@@ -78,69 +79,75 @@ export default function UserProfileClient({ userId }: UserProfileClientProps) {
       
       <div className="pt-20 pb-20">
         {/* 프로필 섹션 */}
-        {userData ? (
-          <div className="px-4 py-6">
-            <div className="bg-gradient-to-r from-purple-500 to-green-400 rounded-3xl p-6 text-white shadow-lg">
-              <div className="flex items-start gap-4 mb-6">
-                <div className="flex flex-col items-center">
-                  <img 
-                    src={userData.avatar} 
-                    alt="프로필" 
-                    className="w-20 h-20 rounded-2xl object-cover border-4 border-white/30 mb-3"
-                  />
-                  {/* 신고하기 버튼을 프로필 사진 아래로 이동 */}
-                  <button
-                    onClick={() => setShowReportModal(true)}
-                    className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-xl text-sm font-medium transition-all duration-300 whitespace-nowrap"
-                  >
-                    <i className="ri-flag-line mr-1"></i>
-                    신고하기
-                  </button>
-                </div>
-                
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h2 className="text-xl font-bold">{userData.name}</h2>
-                    <span className="px-2 py-1 bg-white/20 rounded-full text-xs font-medium">
-                      {userData.level}
-                    </span>
+        {(() => {
+          if (!userData) {
+            return (
+              <div className="px-4 py-6">
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i className="ri-loader-4-line animate-spin text-gray-400 text-2xl"></i>
                   </div>
-                  <p className="text-sm opacity-90 mb-1">{userData.location}</p>
-                  <p className="text-xs opacity-75">가입일: {userData.joinDate}</p>
-                  <div className="flex items-center gap-1 mt-2">
-                    <i className="ri-star-fill text-yellow-300 text-sm"></i>
-                    <span className="text-sm font-medium">{userData.rating}</span>
-                    <span className="text-xs opacity-75">({userData.completedDeals}회 거래)</span>
-                  </div>
+                  <p className="text-gray-500 text-sm">사용자 정보를 불러오는 중...</p>
                 </div>
               </div>
+            );
+          }
+          const user: UserDataType = userData;
+          return (
+            <div className="px-4 py-6">
+              <div className="bg-gradient-to-r from-purple-500 to-green-400 rounded-3xl p-6 text-white shadow-lg">
+                <div className="flex items-start gap-4 mb-6">
+                  <div className="flex flex-col items-center">
+                    <img 
+                      src={user.avatar} 
+                      alt="프로필" 
+                      className="w-20 h-20 rounded-2xl object-cover border-4 border-white/30 mb-3"
+                    />
+                    {/* 신고하기 버튼을 프로필 사진 아래로 이동 */}
+                    <button
+                      onClick={() => setShowReportModal(true)}
+                      className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-xl text-sm font-medium transition-all duration-300 whitespace-nowrap"
+                    >
+                      <i className="ri-flag-line mr-1"></i>
+                      신고하기
+                    </button>
+                  </div>
+                  
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h2 className="text-xl font-bold">{user.name}</h2>
+                      <span className="px-2 py-1 bg-white/20 rounded-full text-xs font-medium">
+                        {user.level}
+                      </span>
+                    </div>
+                    <p className="text-sm opacity-90 mb-1">{user.location}</p>
+                    <p className="text-xs opacity-75">가입일: {user.joinDate}</p>
+                    <div className="flex items-center gap-1 mt-2">
+                      <i className="ri-star-fill text-yellow-300 text-sm"></i>
+                      <span className="text-sm font-medium">{user.rating}</span>
+                      <span className="text-xs opacity-75">({user.completedDeals}회 거래)</span>
+                    </div>
+                  </div>
+                </div>
 
-              <div className="grid grid-cols-3 gap-4">
-                <div className="text-center">
-                  <div className="text-2xl font-bold mb-1">{userData.contributionPoints.toLocaleString()}</div>
-                  <div className="text-xs opacity-90">기여포인트</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold mb-1">{userData.rentalCount}</div>
-                  <div className="text-xs opacity-90">대여 횟수</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold mb-1">{userData.registeredItems}</div>
-                  <div className="text-xs opacity-90">등록 상품</div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold mb-1">{user.contributionPoints.toLocaleString()}</div>
+                    <div className="text-xs opacity-90">기여포인트</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold mb-1">{user.rentalCount}</div>
+                    <div className="text-xs opacity-90">대여 횟수</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold mb-1">{user.registeredItems}</div>
+                    <div className="text-xs opacity-90">등록 상품</div>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        ) : (
-          <div className="px-4 py-6">
-            <div className="text-center py-12">
-              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <i className="ri-loader-4-line animate-spin text-gray-400 text-2xl"></i>
-              </div>
-              <p className="text-gray-500 text-sm">사용자 정보를 불러오는 중...</p>
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* 등록 상품 */}
         <div className="px-4 mb-6">
