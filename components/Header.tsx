@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function Header() {
-  const [notifications] = useState(3);
+  const [notifications] = useState(0); // 실제 알림 개수는 API에서 가져올 예정
   const router = useRouter();
 
   const handleSearchClick = () => {

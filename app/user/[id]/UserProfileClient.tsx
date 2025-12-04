@@ -16,100 +16,34 @@ export default function UserProfileClient({ userId }: UserProfileClientProps) {
   const [selectedReportReason, setSelectedReportReason] = useState('');
   const [reportDetails, setReportDetails] = useState('');
 
-  // 사용자 데이터 - 실제로는 API에서 가져올 데이터
-  const getUserData = (id: string) => {
-    const users = {
-      '1': {
-        name: '김민수',
-        email: 'minsu@example.com',
-        joinDate: '2023.05.20',
-        avatar: 'https://readdy.ai/api/search-image?query=friendly%20young%20korean%20man%20smiling%20profile%20photo%20with%20clean%20background%20for%20chat%20application&width=120&height=120&seq=chat1&orientation=squarish',
-        level: '골드',
-        contributionPoints: 1850,
-        rentalCount: 32,
-        registeredItems: 8,
-        rating: 4.7,
-        completedDeals: 28,
-        location: '서울시 강남구'
-      },
-      '2': {
-        name: '박지영',
-        email: 'jiyoung@example.com',
-        joinDate: '2023.08.15',
-        avatar: 'https://readdy.ai/api/search-image?query=friendly%20young%20korean%20woman%20smiling%20profile%20photo%20with%20clean%20background%20for%20chat%20application&width=120&height=120&seq=chat2&orientation=squarish',
-        level: '실버',
-        contributionPoints: 1200,
-        rentalCount: 18,
-        registeredItems: 5,
-        rating: 4.9,
-        completedDeals: 16,
-        location: '서울시 서초구'
-      },
-      '3': {
-        name: '이준호',
-        email: 'junho@example.com',
-        joinDate: '2023.02.10',
-        avatar: 'https://readdy.ai/api/search-image?query=friendly%20young%20korean%20man%20with%20casual%20style%20profile%20photo%20with%20clean%20background%20for%20chat%20application&width=120&height=120&seq=chat3&orientation=squarish',
-        level: '플래티넘',
-        contributionPoints: 3200,
-        rentalCount: 65,
-        registeredItems: 15,
-        rating: 4.8,
-        completedDeals: 58,
-        location: '서울시 송파구'
-      },
-      '4': {
-        name: '최수진',
-        email: 'sujin@example.com',
-        joinDate: '2023.06.30',
-        avatar: 'https://readdy.ai/api/search-image?query=friendly%20young%20korean%20woman%20with%20artistic%20style%20profile%20photo%20with%20clean%20background%20for%20chat%20application&width=120&height=120&seq=chat4&orientation=squarish',
-        level: '골드',
-        contributionPoints: 2100,
-        rentalCount: 41,
-        registeredItems: 12,
-        rating: 4.6,
-        completedDeals: 35,
-        location: '서울시 마포구'
-      }
-    };
-    return users[userId as keyof typeof users] || users['1'];
-  };
+  // 사용자 데이터 - API에서 가져올 예정 (현재는 null)
+  const userData: {
+    name: string;
+    email: string;
+    joinDate: string;
+    avatar: string;
+    level: string;
+    contributionPoints: number;
+    rentalCount: number;
+    registeredItems: number;
+    rating: number;
+    completedDeals: number;
+    location: string;
+  } | null = null;
 
-  const userData = getUserData(userId);
+  // 등록 상품 - API에서 가져올 예정 (현재는 빈 배열)
+  const userItems: Array<{
+    id: number;
+    title: string;
+    category: string;
+    price: string;
+    status: string;
+    rentalCount: number;
+    rating: number;
+    image: string;
+  }> = [];
 
-  const userItems = [
-    {
-      id: 1,
-      title: 'Wilson 골프채 세트',
-      category: '스포츠',
-      price: '25,000원/일',
-      status: '대여가능',
-      rentalCount: 12,
-      rating: 4.8,
-      image: 'https://readdy.ai/api/search-image?query=Wilson%20golf%20club%20set%20professional%20equipment%20with%20golf%20bag%20on%20clean%20white%20background&width=80&height=80&seq=golf2&orientation=squarish'
-    },
-    {
-      id: 2,
-      title: 'Sony FX3 카메라',
-      category: '전자기기',
-      price: '45,000원/일',
-      status: '대여중',
-      rentalCount: 8,
-      rating: 4.9,
-      image: 'https://readdy.ai/api/search-image?query=Sony%20FX3%20professional%20cinema%20camera%20with%20lens%20on%20clean%20white%20background&width=80&height=80&seq=camera3&orientation=squarish'
-    },
-    {
-      id: 3,
-      title: '4인용 백팩킹 텐트',
-      category: '캠핑',
-      price: '18,000원/일',
-      status: '대여가능',
-      rentalCount: 15,
-      rating: 4.7,
-      image: 'https://readdy.ai/api/search-image?query=Four%20person%20backpacking%20tent%20outdoor%20equipment%20lightweight%20design%20on%20clean%20white%20background&width=80&height=80&seq=tent3&orientation=squarish'
-    }
-  ];
-
+  // 리뷰 - API에서 가져올 예정 (현재는 빈 배열)
   const reviews: Array<{
     id: number;
     reviewer: string;
@@ -144,64 +78,83 @@ export default function UserProfileClient({ userId }: UserProfileClientProps) {
       
       <div className="pt-20 pb-20">
         {/* 프로필 섹션 */}
-        <div className="px-4 py-6">
-          <div className="bg-gradient-to-r from-purple-500 to-green-400 rounded-3xl p-6 text-white shadow-lg">
-            <div className="flex items-start gap-4 mb-6">
-              <div className="flex flex-col items-center">
-                <img 
-                  src={userData.avatar} 
-                  alt="프로필" 
-                  className="w-20 h-20 rounded-2xl object-cover border-4 border-white/30 mb-3"
-                />
-                {/* 신고하기 버튼을 프로필 사진 아래로 이동 */}
-                <button
-                  onClick={() => setShowReportModal(true)}
-                  className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-xl text-sm font-medium transition-all duration-300 whitespace-nowrap"
-                >
-                  <i className="ri-flag-line mr-1"></i>
-                  신고하기
-                </button>
-              </div>
-              
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <h2 className="text-xl font-bold">{userData.name}</h2>
-                  <span className="px-2 py-1 bg-white/20 rounded-full text-xs font-medium">
-                    {userData.level}
-                  </span>
+        {userData ? (
+          <div className="px-4 py-6">
+            <div className="bg-gradient-to-r from-purple-500 to-green-400 rounded-3xl p-6 text-white shadow-lg">
+              <div className="flex items-start gap-4 mb-6">
+                <div className="flex flex-col items-center">
+                  <img 
+                    src={userData.avatar} 
+                    alt="프로필" 
+                    className="w-20 h-20 rounded-2xl object-cover border-4 border-white/30 mb-3"
+                  />
+                  {/* 신고하기 버튼을 프로필 사진 아래로 이동 */}
+                  <button
+                    onClick={() => setShowReportModal(true)}
+                    className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-xl text-sm font-medium transition-all duration-300 whitespace-nowrap"
+                  >
+                    <i className="ri-flag-line mr-1"></i>
+                    신고하기
+                  </button>
                 </div>
-                <p className="text-sm opacity-90 mb-1">{userData.location}</p>
-                <p className="text-xs opacity-75">가입일: {userData.joinDate}</p>
-                <div className="flex items-center gap-1 mt-2">
-                  <i className="ri-star-fill text-yellow-300 text-sm"></i>
-                  <span className="text-sm font-medium">{userData.rating}</span>
-                  <span className="text-xs opacity-75">({userData.completedDeals}회 거래)</span>
+                
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h2 className="text-xl font-bold">{userData.name}</h2>
+                    <span className="px-2 py-1 bg-white/20 rounded-full text-xs font-medium">
+                      {userData.level}
+                    </span>
+                  </div>
+                  <p className="text-sm opacity-90 mb-1">{userData.location}</p>
+                  <p className="text-xs opacity-75">가입일: {userData.joinDate}</p>
+                  <div className="flex items-center gap-1 mt-2">
+                    <i className="ri-star-fill text-yellow-300 text-sm"></i>
+                    <span className="text-sm font-medium">{userData.rating}</span>
+                    <span className="text-xs opacity-75">({userData.completedDeals}회 거래)</span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="grid grid-cols-3 gap-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold mb-1">{userData.contributionPoints.toLocaleString()}</div>
-                <div className="text-xs opacity-90">기여포인트</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold mb-1">{userData.rentalCount}</div>
-                <div className="text-xs opacity-90">대여 횟수</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold mb-1">{userData.registeredItems}</div>
-                <div className="text-xs opacity-90">등록 상품</div>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold mb-1">{userData.contributionPoints.toLocaleString()}</div>
+                  <div className="text-xs opacity-90">기여포인트</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold mb-1">{userData.rentalCount}</div>
+                  <div className="text-xs opacity-90">대여 횟수</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold mb-1">{userData.registeredItems}</div>
+                  <div className="text-xs opacity-90">등록 상품</div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="px-4 py-6">
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i className="ri-loader-4-line animate-spin text-gray-400 text-2xl"></i>
+              </div>
+              <p className="text-gray-500 text-sm">사용자 정보를 불러오는 중...</p>
+            </div>
+          </div>
+        )}
 
         {/* 등록 상품 */}
         <div className="px-4 mb-6">
           <h3 className="text-lg font-bold text-gray-800 mb-4">등록 상품</h3>
-          <div className="space-y-4">
-            {userItems.map((item) => (
+          {userItems.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i className="ri-inbox-line text-gray-400 text-2xl"></i>
+              </div>
+              <p className="text-gray-500 text-sm">등록된 상품이 없습니다</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {userItems.map((item) => (
               <div key={item.id} className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 shadow-sm border border-white/20">
                 <div className="flex items-center gap-4">
                   <img 
@@ -233,7 +186,8 @@ export default function UserProfileClient({ userId }: UserProfileClientProps) {
                 </div>
               </div>
             ))}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* 리뷰 */}
