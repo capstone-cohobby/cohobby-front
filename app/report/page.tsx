@@ -48,7 +48,6 @@ export default function ReportPage() {
         type: reportType,
         title,
         content,
-        imageUrl: imageUrl || undefined,
         delayDays: delayDays ? parseInt(delayDays) : undefined,
       };
 

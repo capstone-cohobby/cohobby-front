@@ -116,7 +116,7 @@ function parseJavaEnum(filePath: string): { enumName: string; values: string[] }
   
   // Enum 값 추출 - 더 정확한 패턴
   // 예: MALE("MALE"), FEMALE("FEMALE");
-  const enumBodyMatch = content.match(/public enum \w+\s*\{([^}]+)\}/s);
+  const enumBodyMatch = content.match(/public enum \w+\s*\{([\s\S]+?)\}/);
   if (enumBodyMatch) {
     const enumBody = enumBodyMatch[1];
     // 각 enum 값 추출
