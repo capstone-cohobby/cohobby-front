@@ -513,26 +513,62 @@ export default function ProductDetail({ productId }: ProductDetailProps) {
       <div className="px-4 pt-6 pb-60 max-w-2xl mx-auto">
         {/* 상품 이미지 캐러셀 */}
         <div className="relative mb-6">
-          <div className="aspect-square md:aspect-auto md:min-h-[400px] md:max-h-[600px] rounded-2xl overflow-hidden bg-white shadow-lg flex items-center justify-center">
+          <div className="aspect-square md:aspect-auto md:min-h-[400px] md:max-h-[600px] rounded-2xl overflow-hidden bg-white shadow-lg flex items-center justify-center relative">
             <img 
               src={product.images[currentImageIndex]} 
               alt={product.title}
               className="w-full h-full md:w-auto md:max-w-full md:max-h-full object-contain"
             />
+            
+            {/* 좌우 화살표 (이미지가 2개 이상일 때만 표시) */}
+            {product.images.length > 1 && (
+              <>
+                {/* 왼쪽 화살표 */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCurrentImageIndex((prev) => 
+                      prev === 0 ? product.images.length - 1 : prev - 1
+                    );
+                  }}
+                  className="absolute left-2 top-1/2 transform -translate-y-1/2 w-10 h-10 bg-black/50 hover:bg-black/70 rounded-full flex items-center justify-center transition-all duration-300 text-white z-10"
+                  aria-label="이전 이미지"
+                >
+                  <i className="ri-arrow-left-s-line text-xl"></i>
+                </button>
+                
+                {/* 오른쪽 화살표 */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCurrentImageIndex((prev) => 
+                      prev === product.images.length - 1 ? 0 : prev + 1
+                    );
+                  }}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 w-10 h-10 bg-black/50 hover:bg-black/70 rounded-full flex items-center justify-center transition-all duration-300 text-white z-10"
+                  aria-label="다음 이미지"
+                >
+                  <i className="ri-arrow-right-s-line text-xl"></i>
+                </button>
+              </>
+            )}
           </div>
           
           {/* 이미지 인디케이터 */}
-          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2">
-            {product.images.map((_, index) => (
-              <button
-                key={index}
-                onClick={() => setCurrentImageIndex(index)}
-                className={`w-2 h-2 rounded-full transition-colors ${
-                  index === currentImageIndex ? 'bg-white' : 'bg-white/50'
-                }`}
-              />
-            ))}
-          </div>
+          {product.images.length > 1 && (
+            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2 z-10">
+              {product.images.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => setCurrentImageIndex(index)}
+                  className={`w-2 h-2 rounded-full transition-colors ${
+                    index === currentImageIndex ? 'bg-white' : 'bg-white/50'
+                  }`}
+                  aria-label={`이미지 ${index + 1}로 이동`}
+                />
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="space-y-4">
